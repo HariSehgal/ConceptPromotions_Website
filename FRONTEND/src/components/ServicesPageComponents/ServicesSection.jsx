@@ -29,8 +29,9 @@ const services = [
       "We bring brands to life through high-energy consumer activations that create strong emotional connections. Our team conceptualizes and manages experiential marketing campaigns that leave a lasting impression. From digital-to-field executions, we ensure every engagement reflects your brand’s story.",
     images: [
       "/ConsumerActivation1.jpg",
-      "/ConsumerActivation2.jpg",
+      "/ConsumerActivation2.png",
       "/ConsumerActivation3.jpg",
+      "/ConsumerActivation4.jpg",
     ],
   },
   {
@@ -47,9 +48,9 @@ const services = [
       "Effective merchandising drives visibility and conversion. We optimize shelf arrangements, displays, and promotional placements to enhance consumer experience and brand recall.",
     images: [
       "/Merchandising1.jpg",
+      "/Merchandising2.png",
       "/Merchandising3.jpg",
       "/Merchandising4.jpg",
-      "/Merchandising5.jpg",
     ],
   },
   {
@@ -63,14 +64,14 @@ const services = [
     icon: <FaFlask />,
     title: "Wet Sampling",
     description:
-      "We provide accurate and consistent wet sampling services ensuring reliable results that align with regulatory standards.",
+      "Help the brand reach the right consumer and Experience the quality of their product firsthand with a complimentary sample. This helps fecilitate the consumer to evaluate benefits and craftsmanship of your product and capture feedback.",
     images: ["/WetSampling1.jpg", "/WetSampling2.jpg", "/WetSampling3.jpg"],
   },
   {
     icon: <FaHome />,
     title: "Home to Home",
     description:
-      "Our home-to-home services ensure reliable and prompt services at your doorstep, enhancing convenience and trust.",
+      "Last Mile connect with the consumers at their door step is one of the strongest medium to engage and generate trail for your product and we offer Home to Home service with Relaiability and  ensure accrate reporting",
     images: [
       "/HomeToHome1.jpg",
       "/HomeToHome2.jpg",
@@ -110,16 +111,15 @@ const ServiceItem = ({ item, reversed }) => {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: false, amount: 0.3 }}
       transition={{ duration: 0.8 }}
-      className={`flex flex-col md:flex-row items-center gap-12 ${
-        reversed ? "md:flex-row-reverse" : ""
-      }`}
+      className={`flex flex-col-reverse md:flex-row items-center gap-12 ${reversed ? "md:flex-row-reverse" : ""
+        }`}
     >
       {/* IMAGE (NO FLOAT ANIMATION) */}
       <motion.div className="w-full md:w-1/2">
         <img
           src={images[currentIndex]}
           alt={item.title}
-          className="rounded-2xl shadow-lg border border-gray-700 object-cover w-full h-72 md:h-80"
+          className="rounded-2xl shadow-lg border border-gray-700 object-cover w-full h-50 md:h-80"
         />
       </motion.div>
 
@@ -155,7 +155,7 @@ const ServiceSection = () => {
       if (index !== -1 && serviceRefs.current[index]) {
         setTimeout(() => {
           const element = serviceRefs.current[index];
-          const offset = element.offsetTop - 130; 
+          const offset = element.offsetTop - 130;
 
           window.scrollTo({
             top: offset,

@@ -16,6 +16,7 @@ import Network from "./pages/Website/NetworkPage";
 import ContactForm from "./pages/Website/ContactFormPage";
 import RetailerDashboard from "./pages/Retailer/RetailerDashboard"
 import EmployeeDashboard from "./pages/Employee/EmployeeDashboard"
+import ClientDashboard from "./pages/Client/ClientDashboard"
 
 const App = () => {
   return (
@@ -37,6 +38,7 @@ const App = () => {
         <Route path="/retailersignin" element={<RetailerSignIn />} />
         <Route path="/retailer-dashboard" element={<RetailerDashboard />} />
         <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
+        <Route path="/client-dashboard" element={<ClientDashboard />} />
       </Routes>
     </Router>
   );

@@ -8,7 +8,7 @@ const testimonials = [
     image: "/testi2.jpg",
     client: "ITC Limited",
     feedback:
-      "From Team ITC for the resilience, agility, and passion shown by Concept Promotions. We highly appreciate your efforts and value our partnership.",
+      "Thank you ITC for your trust and partnership. We deeply value our collaboration and look forward to achieving many more milestones together.",
   },
 ];
 
@@ -41,9 +41,9 @@ const Testimonials = () => {
               <img
                 src={item.image}
                 alt={item.client}
-                className="w-full h-50 object-cover rounded-t-2xl"
+                className="w-full h-42 md:h-50 object-cover rounded-t-2xl"
               />
-              <div className="absolute top-4 left-4 bg-red-600 text-white p-2 rounded-full">
+              <div className="absolute top-4 bg-red-600 text-white p-2 rounded-full">
                 <FaQuoteLeft size={20} />
               </div>
             </div>
@@ -51,8 +51,12 @@ const Testimonials = () => {
             {/* Text Section */}
             <div className="p-6 text-center">
               <h3 className="text-2xl font-semibold text-red-500 mb-2">{item.client}</h3>
-              <p className="text-gray-300 text-lg leading-relaxed">
+              <p className="text-gray-300 text-lg leading-relaxed mb-2">
                 “{item.feedback}”
+              </p>
+
+              <p className="text-gray-400 italic text-sm text-right pr-4 font-bold">
+                — Abhijit Chowdhury
               </p>
             </div>
           </motion.div>

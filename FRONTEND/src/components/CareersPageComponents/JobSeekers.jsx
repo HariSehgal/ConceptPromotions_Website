@@ -149,7 +149,7 @@ const JobSeekers = () => {
         <form className="space-y-4" onSubmit={handleSubmit}>
           {/* Full Name */}
           <div className="flex items-center gap-3">
-            <label className="w-28 text-xs font-semibold text-gray-300">
+            <label className="w-20 md:w-28 text-xs font-semibold text-gray-300">
               Full Name: <span className="text-red-500">*</span>
             </label>
             <div className="relative flex-1">
@@ -166,7 +166,7 @@ const JobSeekers = () => {
 
           {/* Phone */}
           <div className="flex items-center gap-3">
-            <label className="w-28 text-xs font-semibold text-gray-300">
+            <label className="w-20 md:w-28 text-xs font-semibold text-gray-300">
               Phone: <span className="text-red-500">*</span>
             </label>
             <div className="relative flex-1">
@@ -176,6 +176,9 @@ const JobSeekers = () => {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="Enter your phone number"
+                pattern="[0-9]{10}"
+                maxLength={10}
+                title="Enter a valid 10-digit phone number"
                 className="w-full pl-8 pr-3 py-2 rounded-md bg-gray-800 text-white text-xs border border-gray-700 focus:ring-1 focus:ring-red-500 outline-none"
               />
             </div>
@@ -183,7 +186,7 @@ const JobSeekers = () => {
 
           {/* Email */}
           <div className="flex items-center gap-3">
-            <label className="w-28 text-xs font-semibold text-gray-300">
+            <label className="w-20 md:w-28 text-xs font-semibold text-gray-300">
               Email: <span className="text-red-500">*</span>
             </label>
             <div className="relative flex-1">
@@ -200,7 +203,7 @@ const JobSeekers = () => {
 
           {/* City */}
           <div className="flex items-center gap-3">
-            <label className="w-28 text-xs font-semibold text-gray-300">
+            <label className="w-20 md:w-28 text-xs font-semibold text-gray-300">
               City: <span className="text-red-500">*</span>
             </label>
             <div className="relative flex-1">
@@ -217,7 +220,7 @@ const JobSeekers = () => {
 
           {/* Job Role Dropdown */}
           <div className="flex items-center gap-3" ref={dropdownRef}>
-            <label className="w-28 text-xs font-semibold text-gray-300">
+            <label className="w-20 md:w-28 text-xs font-semibold text-gray-300">
               Job Role: <span className="text-red-500">*</span>
             </label>
             <div className="relative flex-1">
@@ -264,7 +267,7 @@ const JobSeekers = () => {
 
           {/* Upload CV */}
           <div className="flex items-start gap-3">
-            <label className="w-28 text-xs font-semibold text-gray-300 mt-2">
+            <label className="w-20 md:w-28 text-xs font-semibold text-gray-300 mt-2">
               Upload CV: <span className="text-red-500">*</span>
             </label>
             <div className="flex-1">
@@ -487,25 +490,25 @@ const JobSeekers = () => {
                   </p>
 
                   <p>
-                    <strong>6. Consent Declaration:</strong> By providing your consent by ticking 
+                    <strong>6. Consent Declaration:</strong> By providing your consent by ticking
                     the checkbox, you acknowledge and agree to the following:
                   </p>
                   <ol className="list-[lower-alpha] ml-4 space-y-1">
                     <li>
-                      That you have read and understood the contents of this Notice and consent to 
+                      That you have read and understood the contents of this Notice and consent to
                       the Processing of your personal data as described here.
                     </li>
                     <li>
-                      That you give your consent voluntarily, without any coercion or influence 
+                      That you give your consent voluntarily, without any coercion or influence
                       from the CPE or any other person.
                     </li>
                     <li>
-                      That you will provide and ensure that the CPE maintains accurate, updated, 
+                      That you will provide and ensure that the CPE maintains accurate, updated,
                       complete and consistent personal data.
                     </li>
                     <li>
-                      The CPE may Process your personal data for certain other purposes without 
-                      your consent, where the law allows us to do so such as enforcement of a 
+                      The CPE may Process your personal data for certain other purposes without
+                      your consent, where the law allows us to do so such as enforcement of a
                       legal claim against you or for the CPE to make regulatory disclosures.
                     </li>
                   </ol>

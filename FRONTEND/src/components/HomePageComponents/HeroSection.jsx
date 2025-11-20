@@ -3,8 +3,6 @@ import { motion } from "framer-motion";
 
 const HeroSection = () => {
   const images = [
-    "/hero_img1.jpg",
-    "/hero_img2.jpg",
     "/hero_img3.jpg",
     "/hero_img4.jpg",
     "/hero_img5.jpg",
@@ -26,11 +24,11 @@ const HeroSection = () => {
         key={images[currentIndex]}
         src={images[currentIndex]}
         alt="Hero background"
-        className="absolute w-full h-full object-cover opacity-30"
+        className="absolute w-full h-full object-cover opacity-40"
       />
 
       {/* dark overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black opacity-80" />
+      <div className="absolute inset bg-gradient-to-b from-black via-transparent to-black opacity-80" />
 
       <motion.div
         initial={{ opacity: 0, y: 30 }}

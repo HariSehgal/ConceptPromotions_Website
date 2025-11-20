@@ -31,8 +31,8 @@ const AboutSection = () => {
             Who We Are
           </h2>
           <p className="text-gray-300 leading-relaxed text-base md:text-lg">
-            We are a team of professionals with 40+ years of experience in retail
-            brand management, consumer activations, and merchandising. Our
+            We are a team of professionals with 7+ years of experience in Retail
+            rand management, In store activations, Retailer payments, Consumer activations, and Merchandising. Our
             PAN-India network ensures seamless execution and measurable results.
           </p>
         </motion.div>
@@ -65,12 +65,7 @@ const AboutSection = () => {
             What We Do
           </h2>
           <p className="text-gray-300 leading-relaxed text-base md:text-lg">
-            Concept Promotions provides PAN India In-Store Promoter Program
-            services for ITC's Personal Care Unit in Modern Trade. We offer
-            end-to-end promoter and merchandiser management, weekend sampling,
-            consumer activations (wet/dry) across various touchpoints, mystery
-            audits, and customized merchandising like T-shirts, mugs, and
-            corporate gifts.
+            Concept Promotions and events provides PAN India BTL engagement activities including end-to-end promoter and merchandiser management, weekend sampling, Retail branding and activation, consumer activations (wet/dry) across various touchpoints, mystery audits, Home to home selling, Event managemnet and customized merchandising like T-shirts, mugs, and corporate gifts.
           </p>
         </motion.div>
       </section>

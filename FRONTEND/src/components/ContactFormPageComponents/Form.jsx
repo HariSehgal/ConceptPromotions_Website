@@ -14,6 +14,7 @@ const ContactForm = () => {
   const [subject, setSubject] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [otherSubject, setOtherSubject] = useState("");
 
   const subjectOptions = [
     "Complaint",
@@ -30,6 +31,31 @@ const ContactForm = () => {
     setSubject(value);
     setDropdownOpen(false);
     setSearchTerm("");
+    if (value !== "Others") {
+      setOtherSubject("");
+    }
+  };
+
+  const handleClickOutside = (e) => {
+    if (!e.target.closest('.dropdown-container')) {
+      setDropdownOpen(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Handle form submission
   };
 
   return (
@@ -58,7 +84,7 @@ const ContactForm = () => {
                 <FiMapPin size={16} />
               </div>
               <p className="font-semibold">
-                WC-5, Bakshi House, <br /> Nehru Place, New Delhi - 110019
+                Communication Address: 32-33, WC-5, <br /> Bakshi House, Nehru Place, <br /> New Delhi - 110019
               </p>
             </div>
           </div>
@@ -73,12 +99,12 @@ const ContactForm = () => {
             We'd love to hear from you! Fill out the form below and we'll respond shortly.
           </p>
 
-          <form className="space-y-4">
+          <div className="space-y-4">
             {/* Name & City */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold mb-1 text-gray-300">
-                  Full Name
+                  Full Name <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <FaUser
@@ -87,7 +113,7 @@ const ContactForm = () => {
                   />
                   <input
                     type="text"
-                    placeholder="Enter your name"
+                    placeholder="Enter your full name"
                     className="w-full pl-9 pr-3 py-2 rounded-md bg-gray-800/80 text-white placeholder-gray-400 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition text-sm"
                     required
                   />
@@ -96,7 +122,7 @@ const ContactForm = () => {
 
               <div>
                 <label className="block text-xs font-semibold mb-1 text-gray-300">
-                  City
+                  City <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <FaCity
@@ -116,7 +142,7 @@ const ContactForm = () => {
             {/* Phone with Verify */}
             <div>
               <label className="block text-xs font-semibold mb-1 text-gray-300">
-                Phone Number
+                Phone Number <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <FaPhoneAlt
@@ -125,7 +151,7 @@ const ContactForm = () => {
                 />
                 <input
                   type="tel"
-                  placeholder="+91 12345 67890"
+                  placeholder="Enter your phone number"
                   className="w-full pl-9 pr-20 py-2 rounded-md bg-gray-800/80 text-white placeholder-gray-400 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition text-sm"
                   required
                 />
@@ -142,7 +168,7 @@ const ContactForm = () => {
             {/* Email */}
             <div>
               <label className="block text-xs font-semibold mb-1 text-gray-300">
-                Email Address
+                Email Address <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <FaEnvelope
@@ -151,7 +177,7 @@ const ContactForm = () => {
                 />
                 <input
                   type="email"
-                  placeholder="abc@example.com"
+                  placeholder="Enter your email address"
                   className="w-full pl-9 pr-3 py-2 rounded-md bg-gray-800/80 text-white placeholder-gray-400 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition text-sm"
                   required
                 />
@@ -159,9 +185,9 @@ const ContactForm = () => {
             </div>
 
             {/* Subject - Searchable Dropdown */}
-            <div className="relative">
+            <div className="relative dropdown-container">
               <label className="block text-xs font-semibold mb-1 text-gray-300">
-                Subject
+                Subject <span className="text-red-500">*</span>
               </label>
               <div
                 className="relative cursor-pointer"
@@ -208,10 +234,27 @@ const ContactForm = () => {
               )}
             </div>
 
+            {/* Other Subject Input */}
+            {subject === "Others" && (
+              <div>
+                <label className="block text-xs font-semibold mb-1 text-gray-300">
+                  Please Specify <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter your subject"
+                  value={otherSubject}
+                  onChange={(e) => setOtherSubject(e.target.value)}
+                  className="w-full px-3 py-2 rounded-md bg-gray-800/80 text-white placeholder-gray-400 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition text-sm"
+                  required
+                />
+              </div>
+            )}
+
             {/* Message */}
             <div>
               <label className="block text-xs font-semibold mb-1 text-gray-300">
-                Message
+                Message <span className="text-red-500">*</span>
               </label>
               <textarea
                 placeholder="Write your message..."
@@ -223,12 +266,12 @@ const ContactForm = () => {
 
             {/* Submit */}
             <button
-              type="submit"
+              onClick={handleSubmit}
               className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-600 text-white font-semibold py-2 rounded-md transition-all duration-300 transform hover:scale-[1.02] shadow-md text-sm"
             >
               Send Message
             </button>
-          </form>
+          </div>
 
           {/* OTP Modal */}
           {showOtpBox && (

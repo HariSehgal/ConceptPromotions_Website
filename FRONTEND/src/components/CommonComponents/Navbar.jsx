@@ -5,6 +5,7 @@ import { Link, useLocation } from "react-router-dom";
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [active, setActive] = useState("Home");
+  const [mobileDropdownOpen, setMobileDropdownOpen] = useState(false);
   const location = useLocation();
 
   const menuItems = [
@@ -12,7 +13,7 @@ const Navbar = () => {
     { name: "About Us", path: "/about" },
     { name: "Clients", path: "/clients" },
     { name: "Our Services", path: "/services" },
-    { name: "Our Network", path: "/network" },   // ⬅️ ADDED HERE
+    { name: "Our Network", path: "/network" },  
     { name: "Careers", path: "/careers" },
     { name: "Contact Us", path: "/contact" },
   ];
@@ -33,9 +34,27 @@ const Navbar = () => {
     }
   }, [location.pathname]);
 
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   const handleClick = (item) => {
     setActive(item);
     setIsOpen(false);
+    setMobileDropdownOpen(false);
+  };
+
+  const handleMobileDropdownToggle = () => {
+    setMobileDropdownOpen(!mobileDropdownOpen);
   };
 
   return (
@@ -100,46 +119,54 @@ const Navbar = () => {
 
       {/* Mobile Menu */}
       {isOpen && (
-        <ul className="absolute top-20 left-0 w-full bg-black bg-opacity-95 text-white flex flex-col items-center space-y-6 py-8 z-[999] md:hidden transition-all duration-300">
+        <div className="fixed top-20 left-0 w-full h-[calc(100vh-5rem)] bg-black bg-opacity-95 z-[999] md:hidden overflow-y-auto transition-all duration-300">
+          <ul className="flex flex-col items-center space-y-6 py-8 text-white">
 
-          {menuItems.map((item) => (
-            <li key={item.name}>
-              <Link
-                to={item.path}
-                onClick={() => handleClick(item.name)}
-                className={`text-lg transition-colors ${
-                  active === item.name ? "text-red-500" : "hover:text-red-500 text-white"
-                }`}
+            {menuItems.map((item) => (
+              <li key={item.name}>
+                <Link
+                  to={item.path}
+                  onClick={() => handleClick(item.name)}
+                  className={`text-lg transition-colors ${
+                    active === item.name ? "text-red-500" : "hover:text-red-500 text-white"
+                  }`}
+                >
+                  {item.name}
+                </Link>
+              </li>
+            ))}
+
+            {/* Mobile Supreme Login */}
+            <li className="relative w-full flex flex-col items-center">
+              <button
+                onClick={handleMobileDropdownToggle}
+                className="cursor-pointer w-[90%] mx-auto bg-gradient-to-r from-red-600 to-red-500 text-white font-semibold px-6 py-3 rounded-full shadow-[0_0_15px_rgba(255,0,0,0.4)] hover:shadow-[0_0_25px_rgba(255,0,0,0.7)] hover:scale-105 transition-all flex items-center justify-center gap-2"
               >
-                {item.name}
-              </Link>
-            </li>
-          ))}
-
-          {/* Mobile Supreme Login */}
-          <li className="relative w-full flex flex-col items-center">
-            <details className="group w-full text-center">
-              <summary className="cursor-pointer w-[90%] mx-auto bg-gradient-to-r from-red-600 to-red-500 text-white font-semibold px-6 py-3 rounded-full shadow-[0_0_15px_rgba(255,0,0,0.4)] hover:shadow-[0_0_25px_rgba(255,0,0,0.7)] hover:scale-105 transition-all list-none">
                 Supreme Login
-              </summary>
+                <FaChevronDown className={`text-xs transition-transform duration-300 ${mobileDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-              <ul className="mt-3 w-56 mx-auto bg-black border border-red-600/40 rounded-xl shadow-[0_0_25px_rgba(255,0,0,0.3)]">
-                {dropdownItems.map((item) => (
-                  <li key={item.name}>
-                    <Link
-                      to={item.path}
-                      className="block px-4 py-3 text-white hover:bg-red-600/20 hover:text-red-400 transition-all rounded-lg"
-                      onClick={() => setIsOpen(false)}
-                    >
-                      {item.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-
-            </details>
-          </li>
-        </ul>
+              {mobileDropdownOpen && (
+                <ul className="mt-3 w-56 mx-auto bg-black border border-red-600/40 rounded-xl shadow-[0_0_25px_rgba(255,0,0,0.3)]">
+                  {dropdownItems.map((item) => (
+                    <li key={item.name}>
+                      <Link
+                        to={item.path}
+                        className="block px-4 py-3 text-white hover:bg-red-600/20 hover:text-red-400 transition-all rounded-lg"
+                        onClick={() => {
+                          setIsOpen(false);
+                          setMobileDropdownOpen(false);
+                        }}
+                      >
+                        {item.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          </ul>
+        </div>
       )}
     </nav>
   );

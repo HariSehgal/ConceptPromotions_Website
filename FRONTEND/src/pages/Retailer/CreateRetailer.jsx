@@ -272,6 +272,7 @@ const CreateRetailer = () => {
     const [panError, setPanError] = useState("");
     const [gstError, setGstError] = useState("");
     const [pincodeError, setPincodeError] = useState("");
+    const [ifscError, setIfscError] = useState("");
 
     // Bank details
     const bankOptions = [
@@ -821,12 +822,24 @@ const CreateRetailer = () => {
                                 <input
                                     type="text"
                                     value={ifsc}
-                                    onChange={(e) => setIfsc(e.target.value.toUpperCase())}
+                                    onChange={(e) => {
+                                        const val = e.target.value.toUpperCase();
+                                        setIfsc(val);
+
+                                        const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+
+                                        if (val === "") setIfscError("");
+                                        else if (!ifscRegex.test(val))
+                                            setIfscError("Invalid IFSC Code format (e.g., HDFC0001234)");
+                                        else setIfscError("");
+                                    }}
                                     placeholder="HDFC0001234"
                                     maxLength={11}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
-                                    required
+                                    className={`w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 ${ifscError ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-[#E4002B]"
+                                        }`}
                                 />
+
+                                {ifscError && <p className="text-red-500 text-xs mt-1">{ifscError}</p>}
                             </div>
 
                             <div>

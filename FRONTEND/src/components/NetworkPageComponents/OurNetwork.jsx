@@ -50,14 +50,14 @@ const OurNetwork = () => {
             whileInView={{ x: 0, opacity: 1 }}
             transition={{ duration: 0.8 }}
             viewport={{ once: true }}
-            className="flex-1 grid grid-cols-2 gap-6"
+            className="flex-1 grid grid-cols-2 gap-6 w-full"
           >
             {stats.map((item, index) => (
               <motion.div
                 key={index}
                 whileHover={{ y: -5, scale: 1.03 }}
                 transition={{ duration: 0.3 }}
-                className="bg-white rounded-2xl border-[5px] border-red-600 p-6 text-center shadow-[0_0_20px_rgba(228,0,43,0.2)] hover:shadow-[0_0_35px_rgba(228,0,43,0.4)] transition-all duration-300 box-border flex flex-col justify-center items-center h-[150px]"
+                className="bg-white rounded-2xl border-[5px] border-red-600 p-6 text-center shadow-[0_0_20px_rgba(228,0,43,0.2)] hover:shadow-[0_0_35px_rgba(228,0,43,0.4)] transition-all duration-300 box-border flex flex-col justify-center items-center h-[160px]"
               >
                 <h3 className="text-4xl md:text-5xl font-extrabold text-red-500 leading-none">
                   <CountUp
@@ -70,12 +70,14 @@ const OurNetwork = () => {
                     {({ countUpRef }) => <span ref={countUpRef}></span>}
                   </CountUp>
                 </h3>
-                <p className="mt-2 text-black font-semibold text-sm md:text-base whitespace-nowrap overflow-hidden text-ellipsis">
+
+                <p className="mt-3 text-black font-semibold text-xs sm:text-sm md:text-base text-center leading-snug">
                   {item.label}
                 </p>
               </motion.div>
             ))}
           </motion.div>
+
         </div>
       </div>
     </section>

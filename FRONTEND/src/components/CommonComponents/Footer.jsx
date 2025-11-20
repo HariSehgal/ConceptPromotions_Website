@@ -21,7 +21,7 @@ const Footer = () => {
               Concept<span className="text-red-600">Promotions</span>
             </h2>
 
-            <ul className="flex justify-center md:justify-start flex-wrap gap-3 text-gray-400">
+            <ul className="flex justify-center md:justify-start flex-wrap gap-3 text-gray-400 text-xs md:text-sm">
               <li><a href="/" className="hover:text-red-500 transition">Home</a></li>
               <li>|</li>
               <li><a href="/about" className="hover:text-red-500 transition">About</a></li>
@@ -43,8 +43,9 @@ const Footer = () => {
             <div className="flex justify-center md:justify-start items-start space-x-3">
               <FaMapMarkerAlt className="text-red-600 mt-1" />
               <p>
-                WC-5, Bakshi House, <br />
-                Nehru Place, New Delhi - 110019
+                Communication Address: 32-33, WC-5, <br />
+                Bakshi House, Nehru Place, <br />
+                New Delhi - 110019
               </p>
             </div>
             <div className="flex justify-center md:justify-start items-center space-x-3">
@@ -67,39 +68,18 @@ const Footer = () => {
             <h3 className="font-semibold text-white text-lg">
               Follow us on
             </h3>
-            <div className="flex justify-center md:justify-start space-x-6 pt-2">
-              <a
-                href="#"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-red-500 transition"
-              >
-                <FaFacebookF />
-              </a>
-              <a
-                href="#"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-red-500 transition"
-              >
-                <FaTwitter />
-              </a>
-              <a
-                href="#"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-red-500 transition"
-              >
-                <FaLinkedinIn />
-              </a>
-              <a
-                href="#"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-red-500 transition"
-              >
-                <FaInstagram />
-              </a>
+            <div className="flex justify-center md:justify-start space-x-4 pt-2">
+              {[FaFacebookF, FaTwitter, FaLinkedinIn, FaInstagram].map((Icon, idx) => (
+                <a
+                  key={idx}
+                  href="#"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-xl border border-gray-600 bg-gradient-to-b from-gray-900 shadow-md hover:border-red-500 hover:shadow-red-500/40 hover:text-red-500 transition-all duration-300"
+                >
+                  <Icon className="text-gray-300 text-lg" />
+                </a>
+              ))}
             </div>
             <h3 className="font-semibold text-white text-base">
               Also Available On

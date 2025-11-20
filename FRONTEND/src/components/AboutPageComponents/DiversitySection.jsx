@@ -30,7 +30,7 @@ const DiversitySection = () => {
                         className="md:w-1/2 w-full h-[380px] overflow-hidden rounded-2xl border border-gray-700 shadow-lg relative"
                     >
                         <img
-                            src="/diversity.png"
+                            src="/diversity.jpg"
                             alt="Diversity"
                             className="w-full h-full object-cover absolute inset-0 rounded-2xl"
                         />
