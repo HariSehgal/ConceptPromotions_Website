@@ -10,11 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout latest code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2️⃣ SSH into server and deploy
       - name: Deploy to server via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -42,48 +40,9 @@ jobs:
             echo "💾 Saving PM2 state..."
             pm2 save
 
-            echo "✅ Deployment comple: Deploy Backend and Frontend
+            echo "✅ Deployment completed successful"
 
-on:
-  push:
-    branches:
-      - main
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
 
-    steps:
-      # 1️⃣ Checkout latest code
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      # 2️⃣ SSH into server and deploy
-      - name: Deploy to server via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            echo "🚀 Starting deployment..."
 
-            cd ${{ secrets.SERVER_PATH }}
-
-            echo "📥 Pulling latest code..."
-            git pull origin main
-
-            echo "🔧 Deploying backend..."
-            cd backend
-            npm install
-            pm2 restart concept-backend || pm2 start server.js --name concept-backend
-
-            echo "🎨 Deploying frontend (dev mode)..."
-            cd ../FRONTEND
-            npm install
-            pm2 restart concept-frontend || pm2 start npm --name concept-frontend -- run dev
-
-            echo "💾 Saving PM2 state..."
-            pm2 save
-
-            echo "✅ Deployment compl"
