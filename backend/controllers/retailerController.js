@@ -537,6 +537,14 @@ export const getRetailerCampaigns = async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const retailerId = decoded.id;
 
+        // ✅ Fetch retailer info
+        const retailer = await Retailer.findById(retailerId)
+            .select("name uniqueId retailerCode")
+            .lean();
+        if (!retailer) {
+            return res.status(404).json({ message: "Retailer not found" });
+        }
+
         // Optional query parameters for filtering
         const { status, isActive } = req.query;
 
@@ -550,14 +558,21 @@ export const getRetailerCampaigns = async (req, res) => {
 
         const campaigns = await Campaign.find(query)
             .populate("createdBy", "name email")
+            .populate(
+                "assignedRetailers.assignedEmployee",
+                "name contactNo email"
+            ) // ✅ Populate employees
             .sort({ createdAt: -1 })
             .lean();
 
-        // Map to include retailer-specific status
+        // Map to include retailer-specific status and assigned employees
         let campaignsWithStatus = campaigns.map((campaign) => {
             const retailerEntry = campaign.assignedRetailers.find(
                 (r) => r.retailerId.toString() === retailerId.toString()
             );
+
+            // ✅ Get assigned employee for this retailer
+            const assignedEmployee = retailerEntry?.assignedEmployee || null;
 
             return {
                 _id: campaign._id,
@@ -571,14 +586,26 @@ export const getRetailerCampaigns = async (req, res) => {
                 isActive: campaign.isActive,
                 createdBy: campaign.createdBy,
                 createdAt: campaign.createdAt,
+                image: campaign.image || null, // ✅ Add campaign image
                 retailerStatus: {
-                    status: retailerEntry?.status || "pending",
+                    status: retailerEntry?.status || null, // ✅ Changed to null for consistency
                     assignedAt: retailerEntry?.assignedAt,
                     updatedAt: retailerEntry?.updatedAt,
                     startDate:
                         retailerEntry?.startDate || campaign.campaignStartDate,
                     endDate: retailerEntry?.endDate || campaign.campaignEndDate,
                 },
+                // ✅ Add assigned employee info
+                assignedEmployees: assignedEmployee
+                    ? [
+                          {
+                              _id: assignedEmployee._id,
+                              name: assignedEmployee.name,
+                              phone: assignedEmployee.contactNo,
+                              email: assignedEmployee.email,
+                          },
+                      ]
+                    : [],
             };
         });
 
@@ -591,6 +618,13 @@ export const getRetailerCampaigns = async (req, res) => {
 
         res.status(200).json({
             count: campaignsWithStatus.length,
+            retailer: {
+                // ✅ Add retailer info to response
+                id: retailer._id.toString(),
+                name: retailer.name,
+                uniqueId: retailer.uniqueId,
+                retailerCode: retailer.retailerCode,
+            },
             campaigns: campaignsWithStatus,
         });
     } catch (error) {
