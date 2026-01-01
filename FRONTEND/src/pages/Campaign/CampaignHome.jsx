@@ -11,7 +11,7 @@ const CampaignHome = () => {
       const token = localStorage.getItem("token");
 
       const response = await fetch(
-        "https://srv1168036.hstgr.cloud/api/admin/campaigns",
+        "https://conceptpromotions.in/api/admin/campaigns",
         {
           method: "GET",
           headers: {

@@ -74,7 +74,7 @@ const ScheduleUnscheduleTask = () => {
         try {
             const token = localStorage.getItem("token");
             const res = await fetch(
-                "https://srv1168036.hstgr.cloud/api/admin/campaigns",
+                "https://conceptpromotions.in/api/admin/campaigns",
                 {
                     method: "GET",
                     headers: { Authorization: `Bearer ${token}` },
@@ -114,7 +114,7 @@ const ScheduleUnscheduleTask = () => {
             const token = localStorage.getItem("token");
 
             const res = await fetch(
-                `https://srv1168036.hstgr.cloud/api/admin/campaign/${selectedCampaign.value}/visit-schedules`,
+                `https://conceptpromotions.in/api/admin/campaign/${selectedCampaign.value}/visit-schedules`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
@@ -142,7 +142,7 @@ const ScheduleUnscheduleTask = () => {
             const token = localStorage.getItem("token");
 
             const res = await fetch(
-                "https://srv1168036.hstgr.cloud/api/admin/visit-schedule/assign",
+                "https://conceptpromotions.in/api/admin/visit-schedule/assign",
                 {
                     method: "POST",
                     headers: {
@@ -179,7 +179,7 @@ const ScheduleUnscheduleTask = () => {
             const token = localStorage.getItem("token");
 
             const res = await fetch(
-                `https://srv1168036.hstgr.cloud/api/admin/visit-schedule/update/${editingId}`,
+                `https://conceptpromotions.in/api/admin/visit-schedule/update/${editingId}`,
                 {
                     method: "PUT",
                     headers: {
@@ -211,7 +211,7 @@ const ScheduleUnscheduleTask = () => {
             const token = localStorage.getItem("token");
 
             const res = await fetch(
-                `https://srv1168036.hstgr.cloud/api/admin/visit-schedule/delete/${id}`,
+                `https://conceptpromotions.in/api/admin/visit-schedule/delete/${id}`,
                 {
                     method: "DELETE",
                     headers: { Authorization: `Bearer ${token}` },
@@ -256,7 +256,7 @@ const ScheduleUnscheduleTask = () => {
 
             // Use the correct endpoint
             const res = await fetch(
-                `https://srv1168036.hstgr.cloud/api/admin/campaign/${selected.value}/employee-retailer-mapping`,
+                `https://conceptpromotions.in/api/admin/campaign/${selected.value}/employee-retailer-mapping`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 

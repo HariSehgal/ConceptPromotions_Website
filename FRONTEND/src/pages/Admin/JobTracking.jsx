@@ -24,7 +24,7 @@ const JobTracking = ( { onViewJob }) => {
     const fetchJobs = async () => {
         try {
             const token = localStorage.getItem("token");
-            const res = await fetch("https://srv1168036.hstgr.cloud/api/admin/jobs", {
+            const res = await fetch("https://conceptpromotions.in/api/admin/jobs", {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },

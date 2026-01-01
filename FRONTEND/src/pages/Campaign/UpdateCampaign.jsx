@@ -6,7 +6,7 @@ const UpdateCampaign = ({ onEdit }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const API = "https://srv1168036.hstgr.cloud/api/admin/campaigns";
+  const API = "https://conceptpromotions.in/api/admin/campaigns";
 
   const fetchCampaigns = async () => {
     try {

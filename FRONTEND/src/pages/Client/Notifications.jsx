@@ -43,7 +43,7 @@ const Notifications = () => {
           {notifications.map((item) => (
             <div
               key={item.id}
-              className="border border-gray-200 bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition"
+              className="border border-gray-200 bg-[#EDEDED] rounded-lg p-4 shadow-sm hover:shadow-md transition"
             >
               <div className="flex justify-between items-center mb-1">
                 <h3 className="font-semibold text-gray-800">{item.title}</h3>

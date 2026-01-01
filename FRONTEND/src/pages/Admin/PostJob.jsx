@@ -64,7 +64,7 @@ const PostJob = () => {
 
     try {
       setLoading(true);
-      const response = await fetch("https://srv1168036.hstgr.cloud/api/admin/jobs", {
+      const response = await fetch("https://conceptpromotions.in/api/admin/jobs", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

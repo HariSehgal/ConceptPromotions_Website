@@ -278,7 +278,7 @@ const CreateRetailer = () => {
 
         try {
             const response = await fetch(
-                "https://srv1168036.hstgr.cloud/api/admin/retailers",
+                "https://conceptpromotions.in/api/admin/retailers",
                 {
                     method: "POST",
                     headers: {

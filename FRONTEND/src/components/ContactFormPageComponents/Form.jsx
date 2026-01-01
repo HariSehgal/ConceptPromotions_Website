@@ -8,13 +8,11 @@ import {
 } from "react-icons/fa";
 import { FiMail, FiPhone, FiMapPin } from "react-icons/fi";
 import { IoChevronDown, IoClose } from "react-icons/io5";
-import emailjs from '@emailjs/browser';
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const ContactForm = () => {
   const [showOtpBox, setShowOtpBox] = useState(false);
-  const [subject, setSubject] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [otherSubject, setOtherSubject] = useState("");
@@ -30,10 +28,6 @@ const ContactForm = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null);
-
-  const EMAILJS_SERVICE_ID = "service_crpzgyp";
-  const EMAILJS_TEMPLATE_ID = "template_3xy5hd6";
-  const EMAILJS_PUBLIC_KEY = "iUDejMfIrklfUJ6Gl";
 
   const subjectOptions = [
     "Complaint",
@@ -70,7 +64,7 @@ const ContactForm = () => {
     if (submitStatus === "success" || submitStatus === "error") {
       const timer = setTimeout(() => {
         setSubmitStatus(null);
-      }, 5000); 
+      }, 5000);
 
       return () => clearTimeout(timer);
     }
@@ -94,14 +88,21 @@ const ContactForm = () => {
 
     const finalSubject = formData.subject === "Others" ? otherSubject : formData.subject;
 
-    if (!formData.from_name || !formData.city || !formData.phone_number ||
-      !formData.from_email || !finalSubject || !formData.message) {
+    // Frontend validation
+    if (
+      !formData.from_name ||
+      !formData.city ||
+      !formData.phone_number ||
+      !formData.from_email ||
+      !finalSubject ||
+      !formData.message
+    ) {
       toast.error("Please fill in all required fields");
       setIsSubmitting(false);
       return;
     }
 
-    if (!/^\d{10}$/.test(formData.phone_number.replace(/\s/g, ''))) {
+    if (!/^\d{10}$/.test(formData.phone_number.replace(/\s/g, ""))) {
       toast.error("Please enter a valid 10-digit phone number");
       setIsSubmitting(false);
       return;
@@ -114,44 +115,54 @@ const ContactForm = () => {
     }
 
     try {
-      const response = await emailjs.send(
-        EMAILJS_SERVICE_ID,
-        EMAILJS_TEMPLATE_ID,
-        {
-          from_name: formData.from_name,
-          from_email: formData.from_email,
-          phone_number: formData.phone_number,
+      const res = await fetch("https://conceptpromotions.in/api/contact/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fullName: formData.from_name,
           city: formData.city,
+          phone: formData.phone_number,
+          email: formData.from_email,
           subject: finalSubject,
           message: formData.message,
-          to_email: "manager@conceptpromotions.in"
-        },
-        EMAILJS_PUBLIC_KEY
-      );
+        }),
+      });
 
-      console.log('Email sent successfully:', response);
-      setSubmitStatus('success');
+      const data = await res.json();
 
+      if (!res.ok) {
+        toast.error(data.message || "Failed to send message");
+        setSubmitStatus("error");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Success
       toast.success("Message sent successfully!");
+      setSubmitStatus("success");
 
+      // Reset form
       setFormData({
         from_name: "",
         city: "",
         phone_number: "",
         from_email: "",
         subject: "",
-        message: ""
+        message: "",
       });
       setOtherSubject("");
 
-    } catch (error) {
-      console.error('Email send failed:', error);
-      setSubmitStatus('error');
-      toast.error("Something went wrong. Please try again.");
-    } finally {
-      setIsSubmitting(false);
+    } catch (err) {
+      console.error("CONTACT API ERROR:", err);
+      toast.error("Something went wrong. Try again later.");
+      setSubmitStatus("error");
     }
+
+    setIsSubmitting(false);
   };
+
 
   return (
     <>
@@ -264,13 +275,13 @@ const ContactForm = () => {
                       className="w-full pl-9 pr-20 py-2 rounded-md bg-gray-800/80 text-white placeholder-gray-400 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition text-sm"
                       required
                     />
-                    {/* <button
-                  type="button"
-                  onClick={() => setShowOtpBox(true)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-red-500 text-xs font-semibold hover:underline cursor-pointer"
-                >
-                  Verify
-                </button> */}
+                    <button
+                      type="button"
+                      onClick={() => setShowOtpBox(true)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-red-500 text-xs font-semibold hover:underline cursor-pointer"
+                    >
+                      Verify
+                    </button>
                   </div>
                 </div>
 

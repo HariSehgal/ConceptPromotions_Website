@@ -78,7 +78,7 @@ const AssignCampaign = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
-        "https://supreme-419p.onrender.com/api/admin/campaigns",
+        "https://conceptpromotions.in/api/admin/campaigns",
         {
           method: "GET",
           headers: { Authorization: `Bearer ${token}` },
@@ -120,7 +120,7 @@ const AssignCampaign = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
-        "https://supreme-419p.onrender.com/api/admin/retailers",
+        "https://conceptpromotions.in/api/admin/retailers",
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await res.json();
@@ -146,7 +146,7 @@ const AssignCampaign = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
-        "https://supreme-419p.onrender.com/api/admin/employees",
+        "https://conceptpromotions.in/api/admin/employees",
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await res.json();
@@ -446,7 +446,7 @@ const AssignCampaign = () => {
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
-        "https://supreme-419p.onrender.com/api/admin/campaigns/assign",
+        "https://conceptpromotions.in/api/admin/campaigns/assign",
         {
           method: "POST",
           headers: {

@@ -18,37 +18,35 @@ const customSelectStyles = {
 };
 
 const stockTypeOptions = [
-    { value: "opening", label: "Opening Stock" },
-    { value: "closing", label: "Closing Stock" },
-    { value: "purchase", label: "Purchase Stock" },
-    { value: "sold", label: "Sold Stock" },
+    { value: "Opening Stock", label: "Opening Stock" },
+    { value: "Closing Stock", label: "Closing Stock" },
+    { value: "Purchase Stock", label: "Purchase Stock" },
+    { value: "Sold Stock", label: "Sold Stock" },
 ];
 
 const productTypeOptions = [
-    { value: "focus", label: "Focus" },
-    { value: "all", label: "All" },
+    { value: "Focus", label: "Focus" },
+    { value: "All", label: "All" },
 ];
 
 const reportTypes = [
-    { value: "window", label: "Window Display" },
-    { value: "stock", label: "Stock" },
-    { value: "others", label: "Others" },
+    { value: "Window Display", label: "Window Display" },
+    { value: "Stock", label: "Stock" },
+    { value: "Others", label: "Others" },
 ];
 
-const frequencyOptions = [
-    { value: "daily", label: "Daily" },
-    { value: "weekly", label: "Weekly" },
-    { value: "fortnightly", label: "Fortnightly" },
-    { value: "monthly", label: "Monthly" },
-];
-
-const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId }) => {
+const SubmitReportForm = ({
+    retailers,
+    employees,
+    onSubmit,
+    onCancel,
+    campaignId,
+}) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [retailer, setRetailer] = useState(null);
     const [employee, setEmployee] = useState(null);
     const [reportType, setReportType] = useState(null);
-    const [frequency, setFrequency] = useState(null);
-    const [notes, setNotes] = useState("");
+    const [remarks, setRemarks] = useState("");
     const [loadingEmployee, setLoadingEmployee] = useState(false);
     const [loadingRetailers, setLoadingRetailers] = useState(false);
 
@@ -56,7 +54,7 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
     const [filteredEmployees, setFilteredEmployees] = useState([]);
     const [filteredRetailers, setFilteredRetailers] = useState([]);
 
-    // Stock fields - change these from strings to state for Select components
+    // Stock fields
     const [stockType, setStockType] = useState(null);
     const [brand, setBrand] = useState("");
     const [product, setProduct] = useState("");
@@ -65,8 +63,9 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
     const [quantity, setQuantity] = useState("");
 
     // File uploads
-    const [images, setImages] = useState([]);
+    const [shopDisplayImages, setShopDisplayImages] = useState([]);
     const [billCopies, setBillCopies] = useState([]);
+    const [files, setFiles] = useState([]);
 
     // Initialize filtered options
     React.useEffect(() => {
@@ -80,7 +79,7 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
         try {
             const token = localStorage.getItem("token");
             const res = await fetch(
-                `https://srv1168036.hstgr.cloud/api/admin/campaign/${campaignId}/retailer/${retailerId}/employee`,
+                `https://conceptpromotions.in/api/admin/campaign/${campaignId}/retailer/${retailerId}/employee`,
                 {
                     method: "GET",
                     headers: { Authorization: `Bearer ${token}` },
@@ -89,11 +88,12 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
             const data = await res.json();
 
             if (res.ok && data.isAssigned && data.employee) {
-                // Find and set the employee from the employees list
-                const assignedEmp = employees.find(emp => emp.value.toString() === data.employee._id.toString());
+                const assignedEmp = employees.find(
+                    (emp) =>
+                        emp.value.toString() === data.employee._id.toString()
+                );
                 if (assignedEmp) {
                     setEmployee(assignedEmp);
-                    // Filter to show only this employee
                     setFilteredEmployees([assignedEmp]);
                 } else {
                     setEmployee(null);
@@ -118,7 +118,7 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
         try {
             const token = localStorage.getItem("token");
             const res = await fetch(
-                `https://srv1168036.hstgr.cloud/api/admin/campaign/${campaignId}/employee-retailer-mapping`,
+                `https://conceptpromotions.in/api/admin/campaign/${campaignId}/employee-retailer-mapping`,
                 {
                     method: "GET",
                     headers: { Authorization: `Bearer ${token}` },
@@ -127,19 +127,20 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
             const data = await res.json();
 
             if (res.ok && data.employees) {
-                // Find the employee and their retailers
-                const empData = data.employees.find(e => e._id.toString() === employeeId.toString());
+                const empData = data.employees.find(
+                    (e) => e._id.toString() === employeeId.toString()
+                );
 
                 if (empData && empData.retailers && empData.retailers.length > 0) {
-                    // Filter retailers to show only assigned ones
-                    const assignedRetailerIds = empData.retailers.map(r => r._id.toString());
-                    const assignedRetailerOptions = retailers.filter(r =>
+                    const assignedRetailerIds = empData.retailers.map((r) =>
+                        r._id.toString()
+                    );
+                    const assignedRetailerOptions = retailers.filter((r) =>
                         assignedRetailerIds.includes(r.value.toString())
                     );
 
                     setFilteredRetailers(assignedRetailerOptions);
 
-                    // If employee has only one retailer, auto-select it
                     if (assignedRetailerOptions.length === 1) {
                         setRetailer(assignedRetailerOptions[0]);
                     } else {
@@ -158,37 +159,41 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
         }
     };
 
-    // Handle retailer change
     const handleRetailerChange = (selected) => {
         setRetailer(selected);
         if (selected) {
             fetchAssignedEmployee(selected.value);
         } else {
             setEmployee(null);
-            setFilteredEmployees(employees); // Reset to all employees
+            setFilteredEmployees(employees);
+            setFilteredRetailers(retailers); 
         }
     };
 
-    // Handle employee change
     const handleEmployeeChange = (selected) => {
         setEmployee(selected);
         if (selected) {
             fetchAssignedRetailers(selected.value);
         } else {
             setRetailer(null);
-            setFilteredRetailers(retailers); // Reset to all retailers
+            setFilteredRetailers(retailers);
+            setFilteredEmployees(employees);
         }
     };
 
-    const handleImageChange = (e) => {
+    // Image handlers for Window Display
+    const handleShopDisplayImageChange = (e) => {
         const newFiles = Array.from(e.target.files || []);
-        setImages((prevFiles) => [...prevFiles, ...newFiles]);
+        setShopDisplayImages((prevFiles) => [...prevFiles, ...newFiles]);
     };
 
-    const removeImage = (index) => {
-        setImages((prevFiles) => prevFiles.filter((_, i) => i !== index));
+    const removeShopDisplayImage = (index) => {
+        setShopDisplayImages((prevFiles) =>
+            prevFiles.filter((_, i) => i !== index)
+        );
     };
 
+    // Bill copy handlers for Stock
     const handleBillCopyChange = (e) => {
         const newFiles = Array.from(e.target.files || []);
         setBillCopies((prevFiles) => [...prevFiles, ...newFiles]);
@@ -198,13 +203,37 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
         setBillCopies((prevFiles) => prevFiles.filter((_, i) => i !== index));
     };
 
-    const isImage = (file) => file && ["image/png", "image/jpeg", "image/jpg"].includes(file.type);
+    // File handlers for Others
+    const handleFilesChange = (e) => {
+        const newFiles = Array.from(e.target.files || []);
+        setFiles((prevFiles) => [...prevFiles, ...newFiles]);
+    };
+
+    const removeFile = (index) => {
+        setFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
+    };
+
+    const isImage = (file) =>
+        file &&
+        ["image/png", "image/jpeg", "image/jpg"].includes(file.type);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!retailer || !employee || !reportType) {
-            alert("Please fill required fields");
+        if (!retailer || !reportType) {
+            alert("Please select retailer and report type");
+            return;
+        }
+
+        // Get admin ID from token or local storage
+        const token = localStorage.getItem("token");
+        let adminId;
+        try {
+            const payload = JSON.parse(atob(token.split(".")[1]));
+            adminId = payload.id || payload.userId;
+        } catch (err) {
+            console.error("Error parsing token:", err);
+            alert("Authentication error. Please login again.");
             return;
         }
 
@@ -212,35 +241,69 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
 
         const formData = new FormData();
 
-        // Append basic fields
-        formData.append("retailerId", retailer.value);
-        formData.append("employeeId", employee.value);
-        formData.append("reportType", reportType.value);
-        formData.append("notes", notes);
+        // Campaign ID
+        formData.append("campaignId", campaignId);
 
-        if (frequency) {
-            formData.append("frequency", frequency.value);
+        // Report Type
+        formData.append("reportType", reportType.value);
+
+        // Submitted By (Admin)
+        formData.append("submittedBy[role]", "Admin");
+        formData.append("submittedBy[userId]", adminId);
+
+        // Retailer Information
+        formData.append("retailer[retailerId]", retailer.value);
+        formData.append(
+            "retailer[outletName]",
+            retailer.data?.shopDetails?.shopName || "N/A"
+        );
+        formData.append("retailer[retailerName]", retailer.data?.name || "N/A");
+        formData.append("retailer[outletCode]", retailer.data?.uniqueId || "N/A");
+
+        // Employee Information (if selected)
+        if (employee) {
+            formData.append("employee[employeeId]", employee.value);
+            formData.append(
+                "employee[employeeName]",
+                employee.data?.name || "N/A"
+            );
+            formData.append(
+                "employee[employeeCode]",
+                employee.data?.employeeId || "N/A"
+            );
         }
 
-        // Append stock fields if stock type
-        if (reportType.value === "stock") {
-            formData.append("stockType", stockType?.value || "");
-            formData.append("brand", brand);
-            formData.append("product", product);
-            formData.append("sku", sku);
-            formData.append("productType", productType?.value || "");
-            formData.append("quantity", quantity);
+        // Remarks
+        if (remarks) {
+            formData.append("remarks", remarks);
+        }
 
-            // Append bill copies if exist
+        // Stock Report Fields
+        if (reportType.value === "Stock") {
+            if (stockType) formData.append("stockType", stockType.value);
+            if (brand) formData.append("brand", brand);
+            if (product) formData.append("product", product);
+            if (sku) formData.append("sku", sku);
+            if (productType) formData.append("productType", productType.value);
+            if (quantity) formData.append("quantity", quantity);
+
+            // Append bill copies
             billCopies.forEach((billCopy) => {
-                formData.append("billCopy", billCopy);
+                formData.append("billCopies", billCopy);
             });
         }
 
-        // Append images for window or others
-        if (reportType.value === "window" || reportType.value === "others") {
-            images.forEach((image) => {
-                formData.append("images", image);
+        // Window Display Images
+        if (reportType.value === "Window Display") {
+            shopDisplayImages.forEach((image) => {
+                formData.append("shopDisplayImages", image);
+            });
+        }
+
+        // Others Files
+        if (reportType.value === "Others") {
+            files.forEach((file) => {
+                formData.append("files", file);
             });
         }
 
@@ -268,13 +331,18 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
                     isClearable
                 />
                 {filteredRetailers.length === 0 && employee && (
-                    <p className="text-sm text-red-500 mt-1">No retailers assigned to this employee</p>
+                    <p className="text-sm text-red-500 mt-1">
+                        No retailers assigned to this employee
+                    </p>
                 )}
             </div>
 
             <div>
                 <label className="block font-medium mb-1">
-                    Employee * {loadingEmployee && <span className="text-sm text-gray-500">(Loading...)</span>}
+                    Employee (Optional){" "}
+                    {loadingEmployee && (
+                        <span className="text-sm text-gray-500">(Loading...)</span>
+                    )}
                 </label>
                 <Select
                     styles={customSelectStyles}
@@ -287,11 +355,12 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
                     isClearable
                 />
                 {filteredEmployees.length === 0 && retailer && (
-                    <p className="text-sm text-red-500 mt-1">No employee assigned to this retailer</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                        No employee assigned to this retailer
+                    </p>
                 )}
             </div>
 
-            {/* Rest of the form remains the same... */}
             <div>
                 <label className="block font-medium mb-1">Type of Report *</label>
                 <Select
@@ -304,22 +373,17 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
                 />
             </div>
 
-            <div>
-                <label className="block font-medium mb-1">Frequency</label>
-                <Select
-                    styles={customSelectStyles}
-                    options={frequencyOptions}
-                    value={frequency}
-                    onChange={setFrequency}
-                    placeholder="Select Frequency"
-                    isSearchable
-                />
-            </div>
-
             {/* STOCK REPORT */}
-            {reportType?.value === "stock" && (
-                <div className="space-y-3 bg-gray-50 p-4 rounded-md border">
+            {reportType?.value === "Stock" && (
+                <div className="space-y-3 bg-blue-50 p-4 rounded-md border border-blue-200">
+                    <h3 className="font-semibold text-gray-700">
+                        Stock Information
+                    </h3>
+
                     <div>
+                        <label className="block text-sm font-medium mb-1">
+                            Stock Type
+                        </label>
                         <Select
                             styles={customSelectStyles}
                             options={stockTypeOptions}
@@ -330,35 +394,37 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
                         />
                     </div>
 
-                    <input
-                        type="text"
-                        placeholder="Brand"
-                        value={brand}
-                        onChange={(e) => setBrand(e.target.value)}
-                        className="border rounded p-2 w-full"
-                    />
-                    <input
-                        type="text"
-                        placeholder="Product"
-                        value={product}
-                        onChange={(e) => setProduct(e.target.value)}
-                        className="border rounded p-2 w-full"
-                    />
-                    <input
-                        type="text"
-                        placeholder="SKU"
-                        value={sku}
-                        onChange={(e) => setSku(e.target.value)}
-                        className="border rounded p-2 w-full"
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <input
+                            type="text"
+                            placeholder="Brand"
+                            value={brand}
+                            onChange={(e) => setBrand(e.target.value)}
+                            className="border rounded p-2 w-full"
+                        />
+                        <input
+                            type="text"
+                            placeholder="Product"
+                            value={product}
+                            onChange={(e) => setProduct(e.target.value)}
+                            className="border rounded p-2 w-full"
+                        />
+                    </div>
 
-                    <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <input
+                            type="text"
+                            placeholder="SKU"
+                            value={sku}
+                            onChange={(e) => setSku(e.target.value)}
+                            className="border rounded p-2 w-full"
+                        />
                         <Select
                             styles={customSelectStyles}
                             options={productTypeOptions}
                             value={productType}
                             onChange={setProductType}
-                            placeholder="Select Product Type"
+                            placeholder="Product Type"
                             isSearchable
                         />
                     </div>
@@ -371,15 +437,20 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
                         className="border rounded p-2 w-full"
                     />
 
-                    {/* Bill Copy */}
+                    {/* Bill Copies */}
                     <div>
-                        <label className="block font-medium mb-1">Bill Copies <span className="text-red-500">(Multiple Images Allowed)</span></label>
+                        <label className="block font-medium mb-1">
+                            Bill Copies{" "}
+                            <span className="text-red-500">
+                                (Multiple Images Allowed)
+                            </span>
+                        </label>
                         <label className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-[#E4002B]">
                             <FiPlus className="text-3xl text-gray-400" />
-                            <span>Click or drop files here to add bill copies</span>
+                            <span>Click to upload bill copies</span>
                             <input
                                 type="file"
-                                accept="image/*, application/pdf"
+                                accept="image/*"
                                 multiple
                                 className="hidden"
                                 onChange={handleBillCopyChange}
@@ -403,7 +474,8 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
                                             <div className="w-full h-32 flex items-center justify-center bg-gray-100">
                                                 <p className="text-sm text-gray-600 px-2 text-center">
                                                     {file?.name && file.name.length > 20
-                                                        ? file.name.substring(0, 17) + "..."
+                                                        ? file.name.substring(0, 17) +
+                                                        "..."
                                                         : file?.name}
                                                 </p>
                                             </div>
@@ -427,7 +499,8 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
 
                         {billCopies.length > 0 && (
                             <p className="text-sm text-gray-600 mt-3">
-                                {billCopies.length} bill cop{billCopies.length !== 1 ? "ies" : "y"} uploaded
+                                {billCopies.length} bill cop
+                                {billCopies.length !== 1 ? "ies" : "y"} uploaded
                             </p>
                         )}
                     </div>
@@ -435,24 +508,29 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
             )}
 
             {/* WINDOW DISPLAY */}
-            {reportType?.value === "window" && (
+            {reportType?.value === "Window Display" && (
                 <div>
-                    <label className="block font-medium mb-1">Upload Shop Display Images <span className="text-red-500">(Multiple Images Allowed)</span></label>
+                    <label className="block font-medium mb-1">
+                        Upload Shop Display Images{" "}
+                        <span className="text-red-500">
+                            (Multiple Images Allowed)
+                        </span>
+                    </label>
                     <label className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-[#E4002B]">
                         <FiPlus className="text-3xl text-gray-400" />
-                        <span>Click or drop files here to add more images</span>
+                        <span>Click to upload shop display images</span>
                         <input
                             type="file"
                             accept="image/*"
                             multiple
                             className="hidden"
-                            onChange={handleImageChange}
+                            onChange={handleShopDisplayImageChange}
                         />
                     </label>
 
-                    {images.length > 0 && (
+                    {shopDisplayImages.length > 0 && (
                         <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-                            {images.map((file, index) => (
+                            {shopDisplayImages.map((file, index) => (
                                 <div
                                     key={index}
                                     className="relative border-2 border-dashed rounded-lg overflow-hidden bg-gray-50 group"
@@ -464,7 +542,7 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => removeImage(index)}
+                                        onClick={() => removeShopDisplayImage(index)}
                                         className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                                     >
                                         <FiX size={16} />
@@ -479,43 +557,44 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
                         </div>
                     )}
 
-                    {images.length > 0 && (
+                    {shopDisplayImages.length > 0 && (
                         <p className="text-sm text-gray-600 mt-3">
-                            {images.length} image{images.length !== 1 ? "s" : ""} uploaded
+                            {shopDisplayImages.length} image
+                            {shopDisplayImages.length !== 1 ? "s" : ""} uploaded
                         </p>
                     )}
                 </div>
             )}
 
             {/* OTHERS REPORT */}
-            {reportType?.value === "others" && (
+            {reportType?.value === "Others" && (
                 <div>
                     <label className="block font-medium mb-1">
-                        Upload Files <span className="text-red-500">(Multiple Files Allowed)</span>
+                        Upload Files{" "}
+                        <span className="text-red-500">
+                            (Multiple Files Allowed)
+                        </span>
                     </label>
 
-                    {/* Upload Box — Same as Window Display */}
                     <label className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-[#E4002B]">
                         <FiPlus className="text-3xl text-gray-400" />
-                        <span>Click or drop files here to upload</span>
+                        <span>Click to upload files</span>
                         <input
                             type="file"
-                            accept="image/*, application/pdf"
+                            accept="image/*,application/pdf"
                             multiple
                             className="hidden"
-                            onChange={handleImageChange}
+                            onChange={handleFilesChange}
                         />
                     </label>
 
-                    {/* Preview Grid */}
-                    {images.length > 0 && (
+                    {files.length > 0 && (
                         <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-                            {images.map((file, index) => (
+                            {files.map((file, index) => (
                                 <div
                                     key={index}
                                     className="relative border-2 border-dashed rounded-lg overflow-hidden bg-gray-50 group"
                                 >
-                                    {/* Show image OR file name for pdf/doc */}
                                     {isImage(file) ? (
                                         <img
                                             src={URL.createObjectURL(file)}
@@ -526,23 +605,22 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
                                         <div className="w-full h-32 flex items-center justify-center bg-gray-100">
                                             <p className="text-sm text-gray-600 px-2 text-center">
                                                 {file?.name.length > 20
-                                                    ? file.name.substring(0, 17) + "..."
+                                                    ? file.name.substring(0, 17) +
+                                                    "..."
                                                     : file.name}
                                             </p>
                                         </div>
                                     )}
 
-                                    {/* Remove Icon */}
                                     <button
                                         type="button"
-                                        onClick={() => removeImage(index)}
+                                        onClick={() => removeFile(index)}
                                         className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full p-1 
                         opacity-0 group-hover:opacity-100 transition-opacity"
                                     >
                                         <FiX size={16} />
                                     </button>
 
-                                    {/* Bottom File Name */}
                                     <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 text-center">
                                         {file?.name.length > 15
                                             ? file.name.substring(0, 12) + "..."
@@ -553,23 +631,23 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
                         </div>
                     )}
 
-                    {/* Count */}
-                    {images.length > 0 && (
+                    {files.length > 0 && (
                         <p className="text-sm text-gray-600 mt-3">
-                            {images.length} file{images.length !== 1 ? "s" : ""} uploaded
+                            {files.length} file{files.length !== 1 ? "s" : ""}{" "}
+                            uploaded
                         </p>
                     )}
                 </div>
             )}
 
             <div>
-                <label className="block font-medium mb-1">Notes</label>
+                <label className="block font-medium mb-1">Remarks</label>
                 <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
                     className="border rounded p-2 w-full"
                     rows="3"
-                    placeholder="Add any notes..."
+                    placeholder="Add any remarks..."
                 />
             </div>
 
@@ -594,5 +672,3 @@ const SubmitReportForm = ({ retailers, employees, onSubmit, onCancel, campaignId
 };
 
 export default SubmitReportForm;
-
-

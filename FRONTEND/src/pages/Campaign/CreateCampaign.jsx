@@ -185,7 +185,7 @@ const CreateCampaign = () => {
     try {
       const token = localStorage.getItem("token");
 
-      const response = await fetch("https://srv1168036.hstgr.cloud/api/admin/campaigns", {
+      const response = await fetch("https://conceptpromotions.in/api/admin/campaigns", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

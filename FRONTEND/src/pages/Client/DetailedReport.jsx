@@ -1,521 +1,751 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Select from "react-select";
-import { FaFileDownload, FaFilter } from "react-icons/fa";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import ReportDetailsModal from "./ReportDetailsModal";
+
+const customSelectStyles = {
+    control: (provided, state) => ({
+        ...provided,
+        borderColor: state.isFocused ? "#E4002B" : "#d1d5db",
+        boxShadow: state.isFocused ? "0 0 0 1px #E4002B" : "none",
+        "&:hover": { borderColor: "#E4002B" },
+        minHeight: "42px",
+    }),
+    option: (provided, state) => ({
+        ...provided,
+        backgroundColor: state.isFocused ? "#FEE2E2" : "white",
+        color: "#333",
+        "&:active": { backgroundColor: "#FECACA" },
+    }),
+    menu: (provided) => ({
+        ...provided,
+        zIndex: 20,
+    }),
+};
 
 const DetailedReport = () => {
-    const campaignOptions = [
-        { value: "campaign1", label: "Campaign A" },
-        { value: "campaign2", label: "Campaign B" },
-        { value: "campaign3", label: "Campaign C" },
-    ];
+    const API_BASE_URL = "https://conceptpromotions.in/api";
+    const token = localStorage.getItem("client_token");
 
-    const regionOptions = [
-        { value: "north", label: "North" },
-        { value: "south", label: "South" },
-        { value: "east", label: "East" },
-        { value: "west", label: "West" },
-    ];
+    // Campaign Data
+    const [allCampaigns, setAllCampaigns] = useState([]);
+    const [loadingCampaigns, setLoadingCampaigns] = useState(true);
 
-    const regionStates = {
-        North: [
-            "Jammu and Kashmir",
-            "Ladakh",
-            "Himachal Pradesh",
-            "Punjab",
-            "Haryana",
-            "Uttarakhand",
-            "Uttar Pradesh",
-            "Delhi",
-            "Chandigarh",
-        ],
-        South: [
-            "Andhra Pradesh",
-            "Karnataka",
-            "Kerala",
-            "Tamil Nadu",
-            "Telangana",
-            "Puducherry",
-            "Lakshadweep",
-        ],
-        East: [
-            "Bihar",
-            "Jharkhand",
-            "Odisha",
-            "West Bengal",
-            "Sikkim",
-            "Andaman and Nicobar Islands",
-            "Arunachal Pradesh",
-            "Assam",
-            "Manipur",
-            "Meghalaya",
-            "Mizoram",
-            "Nagaland",
-            "Tripura",
-        ],
-        West: [
-            "Rajasthan",
-            "Gujarat",
-            "Maharashtra",
-            "Madhya Pradesh",
-            "Goa",
-            "Chhattisgarh",
-            "Dadra and Nagar Haveli and Daman and Diu",
-        ],
-    };
-
-    const dateOptions = [
-        { value: "today", label: "Today" },
-        { value: "yesterday", label: "Yesterday" },
-        { value: "last7days", label: "Last 7 Days" },
-        { value: "last30days", label: "Last 30 Days" },
-        { value: "thisMonth", label: "This Month" },
-        { value: "lastMonth", label: "Last Month" },
-        { value: "custom", label: "Custom Range" },
-    ];
-
-    const paymentOptions = [
-        { value: "paid", label: "Paid" },
-        { value: "pending", label: "Pending" },
-        { value: "failed", label: "Failed" },
-    ];
-
-    const outlets = ["Outlet 101", "Outlet 102", "Outlet 103"];
+    // Campaign Status Filter
+    const [selectedStatus, setSelectedStatus] = useState({
+        value: "active",
+        label: "Active",
+    });
 
     const statusOptions = [
-        { value: "enrolled", label: "Enrolled" },
-        { value: "activated", label: "Activated" },
-        { value: "reported", label: "Reported" },
-        { value: "paid", label: "Paid" },
+        { value: "active", label: "Active" },
+        { value: "inactive", label: "Inactive" },
+        { value: "all", label: "All Campaigns" },
     ];
 
-    // State variables
-    const [selectedCampaigns, setSelectedCampaigns] = useState([]);
-    const [selectedRegions, setSelectedRegions] = useState([]);
-    const [selectedStates, setSelectedStates] = useState([]);
-    const [selectedPayment, setSelectedPayment] = useState(null);
-    const [selectedDateRange, setSelectedDateRange] = useState(null);
-    const [selectedOutlet, setSelectedOutlet] = useState(null);
-    const [selectedStatus, setSelectedStatus] = useState(null);
-    const [showCustomDate, setShowCustomDate] = useState(false);
+    // Filters
+    const [selectedCampaign, setSelectedCampaign] = useState(null);
+    const [selectedRetailer, setSelectedRetailer] = useState(null);
+    const [selectedState, setSelectedState] = useState(null);
+    const [selectedReportType, setSelectedReportType] = useState(null);
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
 
-    // Get state options based on selected regions
-    const getStateOptions = () => {
-        if (selectedRegions.length === 0) {
-            const allStates = Object.values(regionStates).flat();
-            return allStates.map((state) => ({
-                value: state.toLowerCase().replace(/\s+/g, "-"),
-                label: state,
-            }));
-        }
-
-        const filteredStates = selectedRegions.flatMap((region) => {
-            const regionKey = region.label;
-            return regionStates[regionKey] || [];
-        });
-
-        return filteredStates.map((state) => ({
-            value: state.toLowerCase().replace(/\s+/g, "-"),
-            label: state,
-        }));
-    };
-
-    const stateOptions = getStateOptions();
-
-    // Handle region change
-    const handleRegionChange = (selected) => {
-        setSelectedRegions(selected);
-        if (selected.length > 0) {
-            const validStateLabels = selected.flatMap(
-                (region) => regionStates[region.label] || []
-            );
-            const filteredStates = selectedStates.filter((state) =>
-                validStateLabels.some(
-                    (validState) =>
-                        validState.toLowerCase().replace(/\s+/g, "-") === state.value
-                )
-            );
-            setSelectedStates(filteredStates);
-        }
-    };
-
-    // Handle date change
-    const handleDateChange = (selected) => {
-        setSelectedDateRange(selected);
-        if (selected?.value === "custom") {
-            setShowCustomDate(true);
-        } else {
-            setShowCustomDate(false);
-            setFromDate("");
-            setToDate("");
-        }
-    };
-
-    // Custom styling with red theme
-    const reportStyles = {
-        control: (base, state) => ({
-            ...base,
-            borderColor: state.isFocused ? "#E4002B" : "#d1d5db",
-            boxShadow: state.isFocused ? "0 0 0 1px #E4002B" : "none",
-            "&:hover": { borderColor: "#E4002B" },
-            borderRadius: "8px",
-            minHeight: "42px",
-        }),
-        option: (base, state) => ({
-            ...base,
-            backgroundColor: state.isFocused ? "#FEE2E2" : "white",
-            color: "#333",
-            "&:active": { backgroundColor: "#FECACA" },
-        }),
-        multiValue: (base) => ({
-            ...base,
-            backgroundColor: "#FEE2E2",
-        }),
-        multiValueLabel: (base) => ({
-            ...base,
-            color: "#E4002B",
-        }),
-        multiValueRemove: (base) => ({
-            ...base,
-            color: "#E4002B",
-            ":hover": {
-                backgroundColor: "#E4002B",
-                color: "white",
-            },
-        }),
-        menu: (base) => ({
-            ...base,
-            zIndex: 20,
-        }),
-    };
-
-    // Sample report data
-    const reportData = [
-        {
-            id: 1,
-            outlet: "Outlet 101",
-            outletCode: "OUT101",
-            region: "North",
-            state: "Delhi",
-            campaign: "Campaign A",
-            status: "Paid",
-            enrollDate: "01-Jan-25",
-            activationDate: "05-Jan-25",
-            reportDate: "15-Jan-25",
-            paymentDate: "20-Jan-25",
-            amount: "5000",
-            payment: "Paid",
-        },
-        {
-            id: 2,
-            outlet: "Outlet 102",
-            outletCode: "OUT102",
-            region: "South",
-            state: "Karnataka",
-            campaign: "Campaign B",
-            status: "Reported",
-            enrollDate: "02-Jan-25",
-            activationDate: "06-Jan-25",
-            reportDate: "16-Jan-25",
-            paymentDate: "-",
-            amount: "4500",
-            payment: "Pending",
-        },
-        {
-            id: 3,
-            outlet: "Outlet 103",
-            outletCode: "OUT103",
-            region: "West",
-            state: "Maharashtra",
-            campaign: "Campaign C",
-            status: "Activated",
-            enrollDate: "03-Jan-25",
-            activationDate: "07-Jan-25",
-            reportDate: "-",
-            paymentDate: "-",
-            amount: "-",
-            payment: "Pending",
-        },
+    const reportTypeOptions = [
+        { value: "Window Display", label: "Window Display" },
+        { value: "Stock", label: "Stock" },
+        { value: "Others", label: "Others" },
     ];
 
-    // Handle export
-    const handleExport = () => {
-        console.log("Exporting report data...");
+    // Data
+    const [displayReports, setDisplayReports] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [hasSearched, setHasSearched] = useState(false);
+
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalReports, setTotalReports] = useState(0);
+    const [limit] = useState(3);
+
+    // Report Details Modal
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [selectedReport, setSelectedReport] = useState(null);
+
+    // ===============================
+    // FETCH CAMPAIGNS ON MOUNT
+    // ===============================
+    useEffect(() => {
+        fetchCampaigns();
+    }, []);
+
+    const fetchCampaigns = async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/client/client/campaigns`, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                toast.error(data.message || "Error fetching campaigns", {
+                    theme: "dark",
+                });
+                return;
+            }
+
+            setAllCampaigns(data.campaigns || []);
+            toast.success("Campaigns loaded successfully!", { theme: "dark" });
+        } catch (err) {
+            toast.error("Failed to load campaigns", { theme: "dark" });
+        } finally {
+            setLoadingCampaigns(false);
+        }
+    };
+
+    // ===============================
+    // FILTER CAMPAIGNS BY STATUS
+    // ===============================
+    const filteredCampaigns = useMemo(() => {
+        if (!selectedStatus || selectedStatus.value === "all") {
+            return allCampaigns;
+        }
+
+        const isActive = selectedStatus.value === "active";
+        return allCampaigns.filter((c) => c.isActive === isActive);
+    }, [allCampaigns, selectedStatus]);
+
+    // ===============================
+    // CAMPAIGN OPTIONS FOR SELECT
+    // ===============================
+    const campaignOptions = useMemo(() => {
+        return filteredCampaigns.map((c) => ({
+            value: c._id,
+            label: c.name,
+            data: c,
+        }));
+    }, [filteredCampaigns]);
+
+    // ===============================
+    // EXTRACT STATES FROM CAMPAIGNS
+    // ===============================
+    const stateOptions = useMemo(() => {
+        const stateSet = new Set();
+
+        // If a specific campaign is selected, get states from that campaign only
+        const campaignsToProcess = selectedCampaign 
+            ? filteredCampaigns.filter(c => c._id === selectedCampaign.value)
+            : filteredCampaigns;
+
+        campaignsToProcess.forEach((campaign) => {
+            (campaign.assignedRetailers || []).forEach((retailerAssignment) => {
+                const state = retailerAssignment.retailerId?.shopDetails?.shopAddress?.state;
+                if (state) stateSet.add(state);
+            });
+        });
+
+        return Array.from(stateSet).map((state) => ({
+            value: state,
+            label: state,
+        }));
+    }, [filteredCampaigns, selectedCampaign]);
+
+    // ===============================
+    // EXTRACT RETAILERS FROM CAMPAIGNS
+    // ===============================
+    const retailerOptions = useMemo(() => {
+        const retailersMap = new Map();
+
+        // If a specific campaign is selected, get retailers from that campaign only
+        const campaignsToProcess = selectedCampaign 
+            ? filteredCampaigns.filter(c => c._id === selectedCampaign.value)
+            : filteredCampaigns;
+
+        campaignsToProcess.forEach((campaign) => {
+            (campaign.assignedRetailers || []).forEach((retailerAssignment) => {
+                const retailer = retailerAssignment.retailerId;
+                if (retailer && retailer._id) {
+                    const retailerId = retailer._id;
+                    const outletName = retailer.shopDetails?.shopName || "N/A";
+                    const outletCode = retailer.uniqueId || "N/A";
+                    const retailerName = retailer.name || "N/A";
+                    const label = `${outletName} • ${outletCode} • ${retailerName}`;
+
+                    // Filter by selected state if applicable
+                    if (selectedState) {
+                        const retailerState = retailer.shopDetails?.shopAddress?.state;
+                        if (retailerState !== selectedState.value) return;
+                    }
+
+                    if (!retailersMap.has(retailerId)) {
+                        retailersMap.set(retailerId, {
+                            value: retailerId,
+                            label: label,
+                            data: retailer,
+                        });
+                    }
+                }
+            });
+        });
+
+        return Array.from(retailersMap.values());
+    }, [filteredCampaigns, selectedCampaign, selectedState]);
+
+    // ===============================
+    // FETCH REPORTS
+    // ===============================
+    const fetchReports = async (page = 1) => {
+        setLoading(true);
+        setHasSearched(true);
+
+        try {
+            // Build query params
+            const params = new URLSearchParams();
+            params.append("page", page);
+            params.append("limit", limit);
+
+            if (selectedCampaign) {
+                params.append("campaignId", selectedCampaign.value);
+            }
+            if (selectedReportType) {
+                params.append("reportType", selectedReportType.value);
+            }
+            if (selectedRetailer) {
+                params.append("retailerId", selectedRetailer.value);
+            }
+            if (fromDate) {
+                params.append("startDate", fromDate);
+            }
+            if (toDate) {
+                params.append("endDate", toDate);
+            }
+
+            const res = await fetch(
+                `${API_BASE_URL}/reports/client-reports?${params.toString()}`,
+                {
+                    method: "GET",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                toast.error(data.message || "Error fetching reports", {
+                    theme: "dark",
+                });
+                setDisplayReports([]);
+                return;
+            }
+
+            let reports = data.reports || [];
+
+            // Client-side filter by state if selected
+            if (selectedState) {
+                reports = reports.filter(
+                    (report) =>
+                        report.retailer?.retailerId?.shopDetails?.shopAddress?.state === selectedState.value
+                );
+            }
+
+            setDisplayReports(reports);
+            setTotalReports(data.pagination?.total || reports.length);
+            setCurrentPage(data.pagination?.page || page);
+            setTotalPages(data.pagination?.pages || 1);
+
+            if (reports.length === 0) {
+                toast.info("No reports found for the selected filters", {
+                    theme: "dark",
+                });
+            } else {
+                toast.success(
+                    `Found ${data.pagination?.total || reports.length} report(s)`,
+                    { theme: "dark" }
+                );
+            }
+        } catch (err) {
+            toast.error("Failed to load reports", { theme: "dark" });
+            setDisplayReports([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // ===============================
+    // HANDLE FILTER CHANGES
+    // ===============================
+    const handleStatusChange = (selected) => {
+        setSelectedStatus(selected);
+        setSelectedCampaign(null);
+        setSelectedRetailer(null);
+        setSelectedState(null);
+    };
+
+    const handleCampaignChange = (selected) => {
+        setSelectedCampaign(selected);
+        setSelectedRetailer(null);
+        setSelectedState(null);
+    };
+
+    const handleStateChange = (selected) => {
+        setSelectedState(selected);
+        setSelectedRetailer(null);
+    };
+
+    const handleClearFilters = () => {
+        setSelectedCampaign(null);
+        setSelectedRetailer(null);
+        setSelectedState(null);
+        setSelectedReportType(null);
+        setFromDate("");
+        setToDate("");
+        setDisplayReports([]);
+        setHasSearched(false);
+        setCurrentPage(1);
+    };
+
+    // ===============================
+    // UTILITY FUNCTIONS
+    // ===============================
+    const formatDate = (dateString) => {
+        if (!dateString) return "N/A";
+        const date = new Date(dateString);
+        return date.toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+        });
+    };
+
+    const handleViewDetails = async (report) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/reports/${report._id}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                setSelectedReport(data.report);
+                setShowDetailsModal(true);
+            } else {
+                toast.error("Failed to load report details", {
+                    theme: "dark",
+                });
+            }
+        } catch (err) {
+            console.error("Error fetching report details:", err);
+            toast.error("Failed to load report details", { theme: "dark" });
+        }
+    };
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+            fetchReports(newPage);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+    };
+
+    const getPageNumbers = () => {
+        const pageNumbers = [];
+        const maxPagesToShow = 5;
+
+        if (totalPages <= maxPagesToShow) {
+            for (let i = 1; i <= totalPages; i++) {
+                pageNumbers.push(i);
+            }
+        } else {
+            if (currentPage <= 3) {
+                for (let i = 1; i <= 4; i++) {
+                    pageNumbers.push(i);
+                }
+                pageNumbers.push("...");
+                pageNumbers.push(totalPages);
+            } else if (currentPage >= totalPages - 2) {
+                pageNumbers.push(1);
+                pageNumbers.push("...");
+                for (let i = totalPages - 3; i <= totalPages; i++) {
+                    pageNumbers.push(i);
+                }
+            } else {
+                pageNumbers.push(1);
+                pageNumbers.push("...");
+                pageNumbers.push(currentPage - 1);
+                pageNumbers.push(currentPage);
+                pageNumbers.push(currentPage + 1);
+                pageNumbers.push("...");
+                pageNumbers.push(totalPages);
+            }
+        }
+
+        return pageNumbers;
     };
 
     return (
-        <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-[#E4002B]">Detailed Report</h2>
-                <button
-                    onClick={handleExport}
-                    className="bg-[#E4002B] text-white px-6 py-2.5 rounded-lg font-medium hover:bg-[#C3002B] transition-colors flex items-center gap-2"
-                >
-                    <FaFileDownload />
-                    Export Report
-                </button>
-            </div>
+        <>
+            <ToastContainer position="top-right" autoClose={3000} />
+            <div className="min-h-screen bg-[#171717] p-6">
+                <div className="max-w-7xl mx-auto">
+                    <h1 className="text-3xl font-bold text-[#E4002B] mb-8">
+                        View Reports
+                    </h1>
 
-            {/* FILTERS */}
-            <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <FaFilter className="text-[#E4002B]" />
-                    <h3 className="text-lg font-semibold text-gray-700">Filters</h3>
-                </div>
+                    {/* Filters Section */}
+                    <div className="bg-[#EDEDED] rounded-lg shadow-md p-6 mb-6">
+                        <h2 className="text-lg font-semibold mb-4 text-gray-700">
+                            Filter Reports (All Optional)
+                        </h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    {/* Campaign Dropdown */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5 text-gray-700">
-                            Campaign
-                        </label>
-                        <Select
-                            options={campaignOptions}
-                            value={selectedCampaigns}
-                            onChange={setSelectedCampaigns}
-                            placeholder="Select Campaign"
-                            isSearchable
-                            isMulti
-                            styles={reportStyles}
-                        />
-                    </div>
+                        {/* First Row - Campaign Status and Campaign */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Campaign Status (Optional)
+                                </label>
+                                <Select
+                                    value={selectedStatus}
+                                    onChange={handleStatusChange}
+                                    options={statusOptions}
+                                    styles={customSelectStyles}
+                                    placeholder="Select campaign status"
+                                    isSearchable
+                                    isClearable
+                                />
+                            </div>
 
-                    {/* Region Dropdown */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5 text-gray-700">
-                            Region
-                        </label>
-                        <Select
-                            options={regionOptions}
-                            value={selectedRegions}
-                            onChange={handleRegionChange}
-                            placeholder="Select Region"
-                            isSearchable
-                            isMulti
-                            styles={reportStyles}
-                        />
-                    </div>
-
-                    {/* State Dropdown */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5 text-gray-700">
-                            State
-                        </label>
-                        <Select
-                            options={stateOptions}
-                            value={selectedStates}
-                            onChange={setSelectedStates}
-                            placeholder="Select State"
-                            isSearchable
-                            isMulti
-                            styles={reportStyles}
-                        />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                    {/* Payment Dropdown */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5 text-gray-700">
-                            Payment Status
-                        </label>
-                        <Select
-                            options={paymentOptions}
-                            value={selectedPayment}
-                            onChange={setSelectedPayment}
-                            placeholder="Select Payment"
-                            isSearchable
-                            styles={reportStyles}
-                        />
-                    </div>
-
-                    {/* Status Dropdown */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5 text-gray-700">
-                            Outlet Status
-                        </label>
-                        <Select
-                            options={statusOptions}
-                            value={selectedStatus}
-                            onChange={setSelectedStatus}
-                            placeholder="Select Status"
-                            isSearchable
-                            styles={reportStyles}
-                        />
-                    </div>
-
-                    {/* Outlet Dropdown */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5 text-gray-700">
-                            Outlet
-                        </label>
-                        <Select
-                            options={outlets.map((x) => ({ label: x, value: x }))}
-                            value={selectedOutlet}
-                            onChange={setSelectedOutlet}
-                            placeholder="Select Outlet"
-                            isSearchable
-                            styles={reportStyles}
-                        />
-                    </div>
-
-                    {/* Date Dropdown */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5 text-gray-700">
-                            Date Range
-                        </label>
-                        <Select
-                            options={dateOptions}
-                            value={selectedDateRange}
-                            onChange={handleDateChange}
-                            placeholder="Select Date"
-                            isSearchable
-                            styles={reportStyles}
-                        />
-                    </div>
-                </div>
-
-                {/* Custom Date Range */}
-                {showCustomDate && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium mb-1.5 text-gray-700">
-                                From Date
-                            </label>
-                            <input
-                                type="date"
-                                className="border border-gray-300 rounded-lg px-3 py-2.5 w-full focus:ring-1 focus:ring-[#E4002B] focus:border-[#E4002B] focus:outline-none transition-colors"
-                                value={fromDate}
-                                onChange={(e) => setFromDate(e.target.value)}
-                            />
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Campaign (Optional)
+                                </label>
+                                <Select
+                                    value={selectedCampaign}
+                                    onChange={handleCampaignChange}
+                                    options={campaignOptions}
+                                    isLoading={loadingCampaigns}
+                                    styles={customSelectStyles}
+                                    placeholder="Select campaign"
+                                    isSearchable
+                                    isClearable
+                                />
+                            </div>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1.5 text-gray-700">
-                                To Date
-                            </label>
-                            <input
-                                type="date"
-                                className="border border-gray-300 rounded-lg px-3 py-2.5 w-full focus:ring-1 focus:ring-[#E4002B] focus:border-[#E4002B] focus:outline-none transition-colors"
-                                value={toDate}
-                                onChange={(e) => setToDate(e.target.value)}
-                            />
+
+                        {/* Second Row - Report Type, State, Retailer */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Report Type (Optional)
+                                </label>
+                                <Select
+                                    value={selectedReportType}
+                                    onChange={setSelectedReportType}
+                                    options={reportTypeOptions}
+                                    styles={customSelectStyles}
+                                    placeholder="Select report type"
+                                    isSearchable
+                                    isClearable
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    State (Optional)
+                                </label>
+                                <Select
+                                    value={selectedState}
+                                    onChange={handleStateChange}
+                                    options={stateOptions}
+                                    styles={customSelectStyles}
+                                    placeholder="Select state"
+                                    isSearchable
+                                    isClearable
+                                    noOptionsMessage={() => "No states available"}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Retailer (Optional)
+                                </label>
+                                <Select
+                                    value={selectedRetailer}
+                                    onChange={setSelectedRetailer}
+                                    options={retailerOptions}
+                                    styles={customSelectStyles}
+                                    placeholder="Select retailer"
+                                    isSearchable
+                                    isClearable
+                                    noOptionsMessage={() => "No retailers available"}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Third Row - Date Filters */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    From Date (Optional)
+                                </label>
+                                <input
+                                    type="date"
+                                    value={fromDate}
+                                    onChange={(e) => setFromDate(e.target.value)}
+                                    className="w-full px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-red-600 focus:outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    To Date (Optional)
+                                </label>
+                                <input
+                                    type="date"
+                                    value={toDate}
+                                    onChange={(e) => setToDate(e.target.value)}
+                                    className="w-full px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-red-600 focus:outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => fetchReports(1)}
+                                disabled={loading}
+                                className="bg-[#E4002B] text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-[#C3002B] transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                                {loading ? "Searching..." : "Search Reports"}
+                            </button>
+
+                            {(selectedCampaign ||
+                                selectedRetailer ||
+                                selectedState ||
+                                selectedReportType ||
+                                fromDate ||
+                                toDate) && (
+                                    <button
+                                        onClick={handleClearFilters}
+                                        className="text-sm text-red-600 underline hover:text-red-800"
+                                    >
+                                        Clear All Filters
+                                    </button>
+                                )}
                         </div>
                     </div>
-                )}
-            </div>
 
-            {/* REPORT TABLE */}
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-[#E4002B] text-white">
-                                <th className="px-4 py-3 text-left font-semibold">S.No</th>
-                                <th className="px-4 py-3 text-left font-semibold">Outlet Name</th>
-                                <th className="px-4 py-3 text-left font-semibold">Outlet Code</th>
-                                <th className="px-4 py-3 text-left font-semibold">Region</th>
-                                <th className="px-4 py-3 text-left font-semibold">State</th>
-                                <th className="px-4 py-3 text-left font-semibold">Campaign</th>
-                                <th className="px-4 py-3 text-left font-semibold">Status</th>
-                                <th className="px-4 py-3 text-left font-semibold">Enroll Date</th>
-                                <th className="px-4 py-3 text-left font-semibold">Activation Date</th>
-                                <th className="px-4 py-3 text-left font-semibold">Report Date</th>
-                                <th className="px-4 py-3 text-left font-semibold">Payment Date</th>
-                                <th className="px-4 py-3 text-left font-semibold">Amount</th>
-                                <th className="px-4 py-3 text-left font-semibold">Payment</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {reportData.map((item, index) => (
-                                <tr
-                                    key={item.id}
-                                    className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
-                                >
-                                    <td className="px-4 py-3">{index + 1}</td>
-                                    <td className="px-4 py-3 font-medium">{item.outlet}</td>
-                                    <td className="px-4 py-3">{item.outletCode}</td>
-                                    <td className="px-4 py-3">{item.region}</td>
-                                    <td className="px-4 py-3">{item.state}</td>
-                                    <td className="px-4 py-3">{item.campaign}</td>
-                                    <td className="px-4 py-3">
-                                        <span
-                                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                item.status === "Paid"
-                                                    ? "bg-green-100 text-green-700"
-                                                    : item.status === "Reported"
-                                                    ? "bg-blue-100 text-blue-700"
-                                                    : item.status === "Activated"
-                                                    ? "bg-yellow-100 text-yellow-700"
-                                                    : "bg-gray-100 text-gray-700"
-                                            }`}
+                    {/* Display Table */}
+                    {!loading && hasSearched && displayReports.length > 0 && (
+                        <div className="bg-[#EDEDED] rounded-lg shadow-md p-6">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
+                                <h2 className="text-lg font-semibold text-gray-700">
+                                    Reports ({totalReports} found)
+                                </h2>
+                                <div className="text-sm text-gray-600">
+                                    Showing {(currentPage - 1) * limit + 1} to{" "}
+                                    {Math.min(currentPage * limit, totalReports)} of{" "}
+                                    {totalReports} reports
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                                    <thead className="bg-gray-100">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                                                S.No
+                                            </th>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                                                Report Type
+                                            </th>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                                                Campaign
+                                            </th>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                                                Retailer
+                                            </th>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                                                Outlet
+                                            </th>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                                                Date
+                                            </th>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                                                Actions
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {displayReports.map((report, index) => (
+                                            <tr
+                                                key={report._id}
+                                                className={`${index % 2 === 0
+                                                        ? "bg-white"
+                                                        : "bg-gray-50"
+                                                    } hover:bg-gray-100 transition`}
+                                            >
+                                                <td className="px-4 py-3 text-sm text-gray-800 border-b">
+                                                    {(currentPage - 1) * limit + index + 1}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-gray-800 border-b">
+                                                    <span className="font-medium">
+                                                        {report.reportType || "N/A"}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-gray-800 border-b">
+                                                    {report.campaignId?.name || "N/A"}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-gray-800 border-b">
+                                                    <div>
+                                                        {report.retailer?.retailerName || "N/A"}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500">
+                                                        {report.retailer?.outletCode || "N/A"}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-gray-800 border-b">
+                                                    {report.retailer?.outletName || "N/A"}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-gray-800 border-b">
+                                                    {formatDate(report.dateOfSubmission || report.createdAt)}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-gray-800 border-b">
+                                                    <button
+                                                        onClick={() => handleViewDetails(report)}
+                                                        className="text-[#E4002B] hover:underline font-medium cursor-pointer"
+                                                    >
+                                                        View Details
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Enhanced Pagination */}
+                            {totalPages > 1 && (
+                                <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
+                                    <div className="text-sm text-gray-600">
+                                        Page {currentPage} of {totalPages}
+                                    </div>
+
+                                    <div className="flex items-center gap-2 flex-wrap justify-center">
+                                        <button
+                                            onClick={() => handlePageChange(1)}
+                                            disabled={currentPage === 1}
+                                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                                         >
-                                            {item.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3">{item.enrollDate}</td>
-                                    <td className="px-4 py-3">{item.activationDate}</td>
-                                    <td className="px-4 py-3">{item.reportDate}</td>
-                                    <td className="px-4 py-3">{item.paymentDate}</td>
-                                    <td className="px-4 py-3 font-medium">
-                                        {item.amount !== "-" ? `₹${item.amount}` : "-"}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <span
-                                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                item.payment === "Paid"
-                                                    ? "bg-green-100 text-green-700"
-                                                    : item.payment === "Pending"
-                                                    ? "bg-orange-100 text-orange-700"
-                                                    : "bg-red-100 text-red-700"
-                                            }`}
+                                            First
+                                        </button>
+
+                                        <button
+                                            onClick={() => handlePageChange(currentPage - 1)}
+                                            disabled={currentPage === 1}
+                                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                                         >
-                                            {item.payment}
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                                            Previous
+                                        </button>
 
-                {reportData.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                        No data available. Please adjust your filters.
-                    </div>
-                )}
+                                        <div className="flex gap-1">
+                                            {getPageNumbers().map((pageNum, idx) =>
+                                                pageNum === "..." ? (
+                                                    <span
+                                                        key={`ellipsis-${idx}`}
+                                                        className="px-3 py-2 text-gray-500"
+                                                    >
+                                                        ...
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        key={pageNum}
+                                                        onClick={() => handlePageChange(pageNum)}
+                                                        className={`px-3 py-2 rounded text-sm ${currentPage === pageNum
+                                                                ? "bg-[#E4002B] text-white"
+                                                                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                                                            }`}
+                                                    >
+                                                        {pageNum}
+                                                    </button>
+                                                )
+                                            )}
+                                        </div>
+
+                                        <button
+                                            onClick={() => handlePageChange(currentPage + 1)}
+                                            disabled={currentPage === totalPages}
+                                            className="px-3 py-2 bg-[#E4002B] text-white rounded hover:bg-[#C3002B] disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                                        >
+                                            Next
+                                        </button>
+
+                                        <button
+                                            onClick={() => handlePageChange(totalPages)}
+                                            disabled={currentPage === totalPages}
+                                            className="px-3 py-2 bg-[#E4002B] text-white rounded hover:bg-[#C3002B] disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                                        >
+                                            Last
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {loading && (
+                        <div className="flex flex-col items-center justify-center py-12 text-gray-200">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#E4002B] mb-4"></div>
+                            <p>Loading reports...</p>
+                        </div>
+                    )}
+
+                    {!loading && hasSearched && displayReports.length === 0 && (
+                        <div className="text-center py-12 text-gray-500 bg-[#EDEDED] rounded-lg">
+                            <p className="text-lg font-medium mb-2">
+                                No reports found
+                            </p>
+                            <p className="text-sm">
+                                Try adjusting your search criteria or clear filters
+                                to see all reports.
+                            </p>
+                        </div>
+                    )}
+
+                    {!hasSearched && (
+                        <div className="text-center py-12 text-gray-400 bg-[#EDEDED] rounded-lg">
+                            <p className="text-lg font-medium mb-2">
+                                Ready to search reports
+                            </p>
+                            <p className="text-sm">
+                                Click "Search Reports" to view reports with your
+                                selected filters.
+                            </p>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Summary Section */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-                <div className="bg-white p-4 rounded-lg shadow-md text-center">
-                    <p className="text-gray-600 text-sm mb-1">Total Outlets</p>
-                    <p className="text-2xl font-bold text-[#E4002B]">{reportData.length}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow-md text-center">
-                    <p className="text-gray-600 text-sm mb-1">Total Paid</p>
-                    <p className="text-2xl font-bold text-green-600">
-                        {reportData.filter((r) => r.payment === "Paid").length}
-                    </p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow-md text-center">
-                    <p className="text-gray-600 text-sm mb-1">Total Pending</p>
-                    <p className="text-2xl font-bold text-orange-600">
-                        {reportData.filter((r) => r.payment === "Pending").length}
-                    </p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow-md text-center">
-                    <p className="text-gray-600 text-sm mb-1">Total Amount</p>
-                    <p className="text-2xl font-bold text-[#E4002B]">
-                        ₹
-                        {reportData
-                            .filter((r) => r.amount !== "-")
-                            .reduce((sum, r) => sum + parseFloat(r.amount), 0)
-                            .toLocaleString()}
-                    </p>
-                </div>
-            </div>
-        </div>
+            {/* Report Details Modal */}
+            {showDetailsModal && selectedReport && (
+                <ReportDetailsModal
+                    report={selectedReport}
+                    onClose={() => {
+                        setShowDetailsModal(false);
+                        setSelectedReport(null);
+                    }}
+                />
+            )}
+        </>
     );
 };
 

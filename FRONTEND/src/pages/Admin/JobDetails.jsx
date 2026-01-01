@@ -13,7 +13,7 @@ const JobDetails = ({ jobId, onBack }) => {
       const token = localStorage.getItem("token");
 
       const res = await fetch(
-        `https://srv1168036.hstgr.cloud/api/admin/career/jobs/${jobId}`,
+        `https://conceptpromotions.in/api/admin/career/jobs/${jobId}`,
         {
           method: "GET",
           headers: {
@@ -49,7 +49,7 @@ const JobDetails = ({ jobId, onBack }) => {
       const token = localStorage.getItem("token");
 
       const res = await fetch(
-        `https://srv1168036.hstgr.cloud/api/admin/jobs/${jobId}`,
+        `https://conceptpromotions.in/api/admin/jobs/${jobId}`,
         {
           method: "PUT",
           headers: {

@@ -17,32 +17,32 @@ const customSelectStyles = {
 };
 
 const stockTypeOptions = [
-    { value: "opening", label: "Opening Stock" },
-    { value: "closing", label: "Closing Stock" },
-    { value: "purchase", label: "Purchase Stock" },
-    { value: "sold", label: "Sold Stock" },
+    { value: "Opening Stock", label: "Opening Stock" },
+    { value: "Closing Stock", label: "Closing Stock" },
+    { value: "Purchase Stock", label: "Purchase Stock" },
+    { value: "Sold Stock", label: "Sold Stock" },
 ];
 
 const productTypeOptions = [
-    { value: "focus", label: "Focus" },
-    { value: "all", label: "All" },
+    { value: "Focus", label: "Focus" },
+    { value: "All", label: "All" },
 ];
 
 const reportTypes = [
-    { value: "window", label: "Window Display" },
-    { value: "stock", label: "Stock" },
-    { value: "others", label: "Others" },
+    { value: "Window Display", label: "Window Display" },
+    { value: "Stock", label: "Stock" },
+    { value: "Others", label: "Others" },
 ];
 
 const frequencyOptions = [
-    { value: "daily", label: "Daily" },
-    { value: "weekly", label: "Weekly" },
-    { value: "fortnightly", label: "Fortnightly" },
-    { value: "monthly", label: "Monthly" },
+    { value: "Daily", label: "Daily" },
+    { value: "Weekly", label: "Weekly" },
+    { value: "Fortnightly", label: "Fortnightly" },
+    { value: "Monthly", label: "Monthly" },
+    { value: "Adhoc", label: "Adhoc" },
 ];
 
 const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
-
     useEffect(() => {
         document.body.style.overflow = "hidden";
         return () => {
@@ -54,30 +54,32 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
 
     // Form state
     const [reportType, setReportType] = useState(
-        reportTypes.find(rt => rt.value === report.reportType) || null
+        reportTypes.find((rt) => rt.value === report.reportType) || null
     );
     const [frequency, setFrequency] = useState(
-        frequencyOptions.find(f => f.value === report.frequency?.toLowerCase?.()) || null
+        frequencyOptions.find((f) => f.value === report.frequency) || null
     );
     const [stockType, setStockType] = useState(
-        stockTypeOptions.find(st => st.value === report.stockType) || null
+        stockTypeOptions.find((st) => st.value === report.stockType) || null
     );
     const [productType, setProductType] = useState(
-        productTypeOptions.find(pt => pt.value === report.productType) || null
+        productTypeOptions.find((pt) => pt.value === report.productType) || null
     );
 
     const [brand, setBrand] = useState(report.brand || "");
     const [product, setProduct] = useState(report.product || "");
     const [sku, setSku] = useState(report.sku || "");
     const [quantity, setQuantity] = useState(report.quantity || "");
-    const [otherReasonText, setOtherReasonText] = useState(report.otherReasonText || "");
+    const [remarks, setRemarks] = useState(report.remarks || "");
 
     const [images, setImages] = useState([]);
-    const [billCopy, setBillCopy] = useState([]);
+    const [billCopies, setBillCopies] = useState([]);
+    const [files, setFiles] = useState([]);
     const [isSaving, setIsSaving] = useState(false);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
     const [removedImageIndices, setRemovedImageIndices] = useState([]);
     const [removedBillIndices, setRemovedBillIndices] = useState([]);
+    const [removedFileIndices, setRemovedFileIndices] = useState([]);
 
     const formatDate = (dateString) => {
         if (!dateString) return "N/A";
@@ -103,32 +105,48 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
     };
 
     const removeImage = (index) => {
-        setImages((prevFiles) => {
-            const newImages = prevFiles.filter((_, i) => i !== index);
-            return newImages;
-        });
+        setImages((prevFiles) => prevFiles.filter((_, i) => i !== index));
     };
 
     const removeCurrentImage = (index) => {
-        setRemovedImageIndices(prev => [...prev, index]);
+        setRemovedImageIndices((prev) => [...prev, index]);
     };
 
     const handleBillCopy = (e) => {
         const newFiles = Array.from(e.target.files || []);
         if (newFiles.length > 0) {
-            setBillCopy((prevFiles) => [...prevFiles, ...newFiles]);
+            setBillCopies((prevFiles) => [...prevFiles, ...newFiles]);
         }
-        e.target.value = ""; // Reset input
-    }
+        e.target.value = "";
+    };
 
     const removeBill = (index) => {
-        setBillCopy((prevFiles) => prevFiles.filter((_, i) => i !== index));
+        setBillCopies((prevFiles) => prevFiles.filter((_, i) => i !== index));
+    };
+
+    const removeCurrentBill = (index) => {
+        setRemovedBillIndices((prev) => [...prev, index]);
+    };
+
+    const handleFilesChange = (e) => {
+        const newFiles = Array.from(e.target.files || []);
+        if (newFiles.length > 0) {
+            setFiles((prevFiles) => [...prevFiles, ...newFiles]);
+        }
+        e.target.value = "";
+    };
+
+    const removeFile = (index) => {
+        setFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
+    };
+
+    const removeCurrentFile = (index) => {
+        setRemovedFileIndices((prev) => [...prev, index]);
     };
 
     const handleSave = async (e) => {
         e.preventDefault();
 
-        // Validation
         if (!reportType) {
             alert("Please select a report type");
             return;
@@ -139,21 +157,23 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
         const formData = new FormData();
 
         // Append basic fields
-        if (reportType) formData.append("reportType", reportType.value);
+        formData.append("reportType", reportType.value);
         if (frequency) formData.append("frequency", frequency.value);
-        if (otherReasonText) formData.append("otherReasonText", otherReasonText);
+        if (remarks) formData.append("remarks", remarks);
 
+        // ✅ Send removed indices to backend
         if (removedImageIndices.length > 0) {
             formData.append("removedImageIndices", JSON.stringify(removedImageIndices));
         }
-
-        // ⭐ Add removed bill indices
         if (removedBillIndices.length > 0) {
             formData.append("removedBillIndices", JSON.stringify(removedBillIndices));
         }
+        if (removedFileIndices.length > 0) {
+            formData.append("removedFileIndices", JSON.stringify(removedFileIndices));
+        }
 
-        // Append stock fields if stock type
-        if (reportType?.value === "stock") {
+        // Append stock fields (if stock type)
+        if (reportType?.value === "Stock") {
             if (stockType) formData.append("stockType", stockType.value);
             if (brand) formData.append("brand", brand);
             if (product) formData.append("product", product);
@@ -161,26 +181,38 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
             if (productType) formData.append("productType", productType.value);
             if (quantity) formData.append("quantity", quantity);
 
-            // Handle multiple bill copies (new uploads)
-            if (billCopy.length > 0) {
-                billCopy.forEach((file) => {
-                    formData.append("billCopy", file);
-                });
+            // Handle bill copies - ONLY append new uploads
+            if (billCopies.length > 0) {
+                billCopies.forEach((file) => formData.append("billCopies", file));
             }
         }
 
-        // Append images if new ones uploaded
-        if (images.length > 0) {
-            images.forEach((image) => {
-                formData.append("images", image);
-            });
+        // Append images for Window Display - ONLY append new uploads
+        if (reportType?.value === "Window Display" && images.length > 0) {
+            images.forEach((image) => formData.append("shopDisplayImages", image));
+        }
+
+        // Append files for Others - ONLY append new uploads
+        if (reportType?.value === "Others" && files.length > 0) {
+            files.forEach((file) => formData.append("files", file));
         }
 
         try {
+            console.log("📤 Sending update for report:", report._id);
+
+            // ✅ Call the parent's onUpdate function
             await onUpdate(report._id, formData);
+
+            console.log("✅ Update complete, closing modal");
+
+            // ✅ Exit edit mode
             setIsEditing(false);
+
+            // ✅ Close the modal (parent will handle refresh)
+            onClose();
+
         } catch (error) {
-            console.error("Failed to update report:", error);
+            console.error("❌ Failed to update report:", error);
             alert("Failed to update report. Please try again.");
         } finally {
             setIsSaving(false);
@@ -196,94 +228,61 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
         }
     };
 
-    const imageUrlsRef = useRef([]);
-
     useEffect(() => {
         if (isEditing) {
-            // Store initial values
-            setReportType(reportTypes.find(rt => rt.value === report.reportType) || null);
-            setFrequency(frequencyOptions.find(f => f.value === report.frequency?.toLowerCase?.()) || null);
-            setStockType(stockTypeOptions.find(st => st.value === report.stockType) || null);
-            setProductType(productTypeOptions.find(pt => pt.value === report.productType) || null);
+            setReportType(
+                reportTypes.find((rt) => rt.value === report.reportType) || null
+            );
+            setFrequency(
+                frequencyOptions.find((f) => f.value === report.frequency) || null
+            );
+            setStockType(
+                stockTypeOptions.find((st) => st.value === report.stockType) || null
+            );
+            setProductType(
+                productTypeOptions.find((pt) => pt.value === report.productType) ||
+                null
+            );
             setBrand(report.brand || "");
             setProduct(report.product || "");
             setSku(report.sku || "");
             setQuantity(report.quantity || "");
-            setOtherReasonText(report.otherReasonText || "");
+            setRemarks(report.remarks || "");
             setImages([]);
-            setBillCopy([]);
+            setBillCopies([]);
+            setFiles([]);
             setRemovedImageIndices([]);
             setRemovedBillIndices([]);
+            setRemovedFileIndices([]);
         }
     }, [isEditing, report]);
 
-    useEffect(() => {
-        return () => {
-            imageUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
-        };
-    }, []);
+    // Helper function to convert Buffer to base64
+    const bufferToBase64 = (buffer, contentType) => {
+        if (!buffer || !buffer.data) return null;
 
-    // Reset fields when report type changes during editing
-    useEffect(() => {
-        if (isEditing && reportType) {
-            const previousReportType = report.reportType;
-            const currentReportType = reportType.value;
-
-            // If switching away from stock type, clear stock-related fields and mark bills for removal
-            if (currentReportType !== "stock" && previousReportType === "stock") {
-                setStockType(null);
-                setBrand("");
-                setProduct("");
-                setSku("");
-                setProductType(null);
-                setQuantity("");
-                setBillCopy([]);
-
-                // Mark all existing bill copies for removal
-                if (report.billCopies && report.billCopies.length > 0) {
-                    setRemovedBillIndices(report.billCopies.map((_, idx) => idx));
-                }
+        try {
+            if (buffer.type === "Buffer" && Array.isArray(buffer.data)) {
+                const base64 = btoa(
+                    buffer.data.reduce(
+                        (data, byte) => data + String.fromCharCode(byte),
+                        ""
+                    )
+                );
+                return `data:${contentType || "image/jpeg"};base64,${base64}`;
             }
-
-            // If switching away from window/others, clear images and mark for removal
-            if (currentReportType !== "window" && currentReportType !== "others" &&
-                (previousReportType === "window" || previousReportType === "others")) {
-                setImages([]);
-
-                // Mark all existing images for removal
-                if (report.images && report.images.length > 0) {
-                    setRemovedImageIndices(report.images.map((_, idx) => idx));
-                }
-            }
-
-            // If switching TO stock from window/others, clear images and mark for removal
-            if (currentReportType === "stock" && (previousReportType === "window" || previousReportType === "others")) {
-                setImages([]);
-
-                // Mark all existing images for removal
-                if (report.images && report.images.length > 0) {
-                    setRemovedImageIndices(report.images.map((_, idx) => idx));
-                }
-            }
-
-            // If switching TO window/others from stock, clear bills and mark for removal
-            if ((currentReportType === "window" || currentReportType === "others") && previousReportType === "stock") {
-                setBillCopy([]);
-
-                // Mark all existing bills for removal
-                if (report.billCopies && report.billCopies.length > 0) {
-                    setRemovedBillIndices(report.billCopies.map((_, idx) => idx));
-                }
-            }
+            return null;
+        } catch (error) {
+            console.error("Error converting buffer to base64:", error);
+            return null;
         }
-    }, [reportType, isEditing]);
+    };
 
     return (
         <div
             className="fixed inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
             onClick={onClose}
         >
-
             <div
                 className="bg-white rounded-lg shadow-xl max-w-5xl w-full my-8"
                 onClick={(e) => e.stopPropagation()}
@@ -322,7 +321,9 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                         </button>
                                         <button
                                             onClick={() => {
-                                                if (window.confirm("Discard all changes?")) {
+                                                if (
+                                                    window.confirm("Discard all changes?")
+                                                ) {
                                                     setIsEditing(false);
                                                 }
                                             }}
@@ -344,59 +345,92 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
 
                     {/* Content */}
                     <div className="p-6">
-
-
                         {isEditing ? (
-                            // EDIT MODE - Form View
+                            // EDIT MODE
                             <form className="space-y-6">
                                 {/* Campaign Info - Read Only */}
                                 <div className="bg-gray-50 p-4 rounded-lg border-l-4 border-blue-500">
-                                    <h3 className="text-lg font-semibold mb-3 text-gray-700">Campaign Information</h3>
+                                    <h3 className="text-lg font-semibold mb-3 text-gray-700">
+                                        Campaign Information
+                                    </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                                         <div>
-                                            <span className="font-medium text-gray-600">Campaign:</span>
-                                            <p className="text-gray-800">{report.campaignName || "N/A"}</p>
+                                            <span className="font-medium text-gray-600">
+                                                Campaign:
+                                            </span>
+                                            <p className="text-gray-800">
+                                                {report.campaignId?.name || "N/A"}
+                                            </p>
                                         </div>
                                         <div>
-                                            <span className="font-medium text-gray-600">Type:</span>
-                                            <p className="text-gray-800">{report.campaignType || "N/A"}</p>
+                                            <span className="font-medium text-gray-600">
+                                                Type:
+                                            </span>
+                                            <p className="text-gray-800">
+                                                {report.campaignId?.type || "N/A"}
+                                            </p>
                                         </div>
                                         <div>
-                                            <span className="font-medium text-gray-600">Client:</span>
-                                            <p className="text-gray-800">{report.clientName || "N/A"}</p>
+                                            <span className="font-medium text-gray-600">
+                                                Client:
+                                            </span>
+                                            <p className="text-gray-800">
+                                                {report.campaignId?.client || "N/A"}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Retailer - Non-editable */}
                                 <div className="bg-gray-100 p-4 rounded-lg border">
-                                    <label className="block font-medium mb-2 text-gray-700">Retailer (Cannot be changed)</label>
+                                    <label className="block font-medium mb-2 text-gray-700">
+                                        Retailer (Cannot be changed)
+                                    </label>
                                     <div className="bg-white p-3 rounded border">
-                                        <p className="font-semibold text-gray-800">{report.retailerName || "N/A"}</p>
+                                        <p className="font-semibold text-gray-800">
+                                            {report.retailer?.retailerName || "N/A"}
+                                        </p>
                                         <p className="text-sm text-gray-600">
-                                            {report.shopName} • {report.retailerCode || report.retailerUniqueId}
+                                            {report.retailer?.outletName} •{" "}
+                                            {report.retailer?.outletCode}
                                         </p>
                                         <p className="text-sm text-gray-500">
-                                            {report.shopCity}, {report.shopState}
+                                            {report.retailer?.retailerId?.shopDetails
+                                                ?.shopAddress?.city || "N/A"}
+                                            ,{" "}
+                                            {report.retailer?.retailerId?.shopDetails
+                                                ?.shopAddress?.state || "N/A"}
                                         </p>
                                     </div>
                                 </div>
 
                                 {/* Employee - Non-editable */}
-                                <div className="bg-gray-100 p-4 rounded-lg border">
-                                    <label className="block font-medium mb-2 text-gray-700">Employee (Cannot be changed)</label>
-                                    <div className="bg-white p-3 rounded border">
-                                        <p className="font-semibold text-gray-800">{report.employeeName || "N/A"}</p>
-                                        <p className="text-sm text-gray-600">{report.employeePhone || "N/A"}</p>
-                                        {report.employeeEmail && (
-                                            <p className="text-sm text-gray-500">{report.employeeEmail}</p>
-                                        )}
+                                {report.employee?.employeeName && (
+                                    <div className="bg-gray-100 p-4 rounded-lg border">
+                                        <label className="block font-medium mb-2 text-gray-700">
+                                            Employee (Cannot be changed)
+                                        </label>
+                                        <div className="bg-white p-3 rounded border">
+                                            <p className="font-semibold text-gray-800">
+                                                {report.employee?.employeeName || "N/A"}
+                                            </p>
+                                            <p className="text-sm text-gray-600">
+                                                {report.employee?.employeeCode || "N/A"}
+                                            </p>
+                                            {report.employee?.employeeId?.phone && (
+                                                <p className="text-sm text-gray-500">
+                                                    {report.employee.employeeId.phone}
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
                                 {/* Report Type */}
                                 <div>
-                                    <label className="block font-medium mb-2">Type of Report *</label>
+                                    <label className="block font-medium mb-2">
+                                        Type of Report *
+                                    </label>
                                     <Select
                                         styles={customSelectStyles}
                                         options={reportTypes}
@@ -409,7 +443,9 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
 
                                 {/* Frequency */}
                                 <div>
-                                    <label className="block font-medium mb-2">Frequency</label>
+                                    <label className="block font-medium mb-2">
+                                        Frequency
+                                    </label>
                                     <Select
                                         styles={customSelectStyles}
                                         options={frequencyOptions}
@@ -422,12 +458,16 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                 </div>
 
                                 {/* STOCK REPORT FIELDS */}
-                                {reportType?.value === "stock" && (
+                                {reportType?.value === "Stock" && (
                                     <div className="space-y-4 bg-blue-50 p-4 rounded-md border border-blue-200">
-                                        <h3 className="text-lg font-semibold text-gray-700">Stock Information</h3>
+                                        <h3 className="text-lg font-semibold text-gray-700">
+                                            Stock Information
+                                        </h3>
 
                                         <div>
-                                            <label className="block font-medium mb-2">Stock Type</label>
+                                            <label className="block font-medium mb-2">
+                                                Stock Type
+                                            </label>
                                             <Select
                                                 styles={customSelectStyles}
                                                 options={stockTypeOptions}
@@ -440,21 +480,29 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block font-medium mb-2">Brand</label>
+                                                <label className="block font-medium mb-2">
+                                                    Brand
+                                                </label>
                                                 <input
                                                     type="text"
                                                     value={brand}
-                                                    onChange={(e) => setBrand(e.target.value)}
+                                                    onChange={(e) =>
+                                                        setBrand(e.target.value)
+                                                    }
                                                     className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#E4002B] focus:outline-none"
                                                     placeholder="Brand"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block font-medium mb-2">Product</label>
+                                                <label className="block font-medium mb-2">
+                                                    Product
+                                                </label>
                                                 <input
                                                     type="text"
                                                     value={product}
-                                                    onChange={(e) => setProduct(e.target.value)}
+                                                    onChange={(e) =>
+                                                        setProduct(e.target.value)
+                                                    }
                                                     className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#E4002B] focus:outline-none"
                                                     placeholder="Product"
                                                 />
@@ -463,7 +511,9 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block font-medium mb-2">SKU</label>
+                                                <label className="block font-medium mb-2">
+                                                    SKU
+                                                </label>
                                                 <input
                                                     type="text"
                                                     value={sku}
@@ -473,7 +523,9 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block font-medium mb-2">Product Type</label>
+                                                <label className="block font-medium mb-2">
+                                                    Product Type
+                                                </label>
                                                 <Select
                                                     styles={customSelectStyles}
                                                     options={productTypeOptions}
@@ -486,76 +538,99 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                         </div>
 
                                         <div>
-                                            <label className="block font-medium mb-2">Quantity</label>
+                                            <label className="block font-medium mb-2">
+                                                Quantity
+                                            </label>
                                             <input
                                                 type="number"
                                                 value={quantity}
-                                                onChange={(e) => setQuantity(e.target.value)}
+                                                onChange={(e) =>
+                                                    setQuantity(e.target.value)
+                                                }
                                                 className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#E4002B] focus:outline-none"
                                                 placeholder="Quantity"
                                             />
                                         </div>
 
                                         {/* Current Bill Copies */}
-                                        {report.billCopies && report.billCopies.length > 0 && (
-                                            <div className="mb-4">
-                                                <p className="text-sm font-medium text-gray-600 mb-2">
-                                                    Current Bill Copies ({report.billCopies.filter((_, idx) => !removedBillIndices.includes(idx)).length}):
-                                                </p>
-                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                                    {report.billCopies.map((bill, idx) => {
-                                                        // Skip if removed
-                                                        if (removedBillIndices.includes(idx)) return null;
-
-                                                        // Convert Buffer to base64 if needed
-                                                        let imageSource;
-
-                                                        if (bill.data?.type === 'Buffer' && Array.isArray(bill.data?.data)) {
-                                                            const base64 = btoa(
-                                                                bill.data.data.reduce((data, byte) => data + String.fromCharCode(byte), '')
-                                                            );
-                                                            imageSource = `data:${bill.contentType};base64,${base64}`;
-                                                        } else if (typeof bill.data === 'string') {
-                                                            imageSource = bill.data.startsWith('data:')
-                                                                ? bill.data
-                                                                : `data:${bill.contentType};base64,${bill.data}`;
-                                                        } else {
-                                                            imageSource = bill.data;
+                                        {report.billCopies &&
+                                            report.billCopies.length > 0 && (
+                                                <div className="mb-4">
+                                                    <p className="text-sm font-medium text-gray-600 mb-2">
+                                                        Current Bill Copies (
+                                                        {
+                                                            report.billCopies.filter(
+                                                                (_, idx) =>
+                                                                    !removedBillIndices.includes(
+                                                                        idx
+                                                                    )
+                                                            ).length
                                                         }
+                                                        ):
+                                                    </p>
+                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                        {report.billCopies.map(
+                                                            (bill, idx) => {
+                                                                if (
+                                                                    removedBillIndices.includes(
+                                                                        idx
+                                                                    )
+                                                                )
+                                                                    return null;
 
-                                                        return (
-                                                            <div key={idx} className="relative group">
-                                                                <img
-                                                                    src={imageSource}
-                                                                    alt={`Bill ${idx + 1}`}
-                                                                    className="w-full h-32 object-cover rounded border"
-                                                                    onError={(e) => {
-                                                                        console.error('Image load error for bill:', bill);
-                                                                        e.target.style.display = 'none';
-                                                                    }}
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setRemovedBillIndices(prev => [...prev, idx])}
-                                                                    className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                >
-                                                                    ×
-                                                                </button>
-                                                            </div>
-                                                        );
-                                                    })}
+                                                                const imageSource =
+                                                                    bufferToBase64(
+                                                                        bill.data,
+                                                                        bill.contentType
+                                                                    );
+                                                                if (!imageSource)
+                                                                    return null;
+
+                                                                return (
+                                                                    <div
+                                                                        key={idx}
+                                                                        className="relative group"
+                                                                    >
+                                                                        <img
+                                                                            src={imageSource}
+                                                                            alt={`Bill ${idx + 1
+                                                                                }`}
+                                                                            className="w-full h-32 object-cover rounded border"
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                removeCurrentBill(
+                                                                                    idx
+                                                                                )
+                                                                            }
+                                                                            className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                        >
+                                                                            ×
+                                                                        </button>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
 
                                         {/* New Bill Copy Upload */}
                                         <div>
                                             <label className="block font-medium mb-2">
-                                                {billCopy.length > 0 ? "Add More Bill Copies" : "Upload Bill Copies"}
+                                                {billCopies.length > 0
+                                                    ? "Add More Bill Copies"
+                                                    : "Upload Bill Copies"}
                                             </label>
                                             <label className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-[#E4002B]">
-                                                <span className="text-3xl text-gray-400">+</span>
-                                                <span>Click to upload bill copies (multiple allowed)</span>
+                                                <span className="text-3xl text-gray-400">
+                                                    +
+                                                </span>
+                                                <span>
+                                                    Click to upload bill copies (multiple
+                                                    allowed)
+                                                </span>
                                                 <input
                                                     type="file"
                                                     accept="image/*"
@@ -565,20 +640,27 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                                 />
                                             </label>
 
-                                            {/* Preview new bill copies */}
-                                            {billCopy.length > 0 && (
+                                            {billCopies.length > 0 && (
                                                 <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2">
-                                                    {billCopy.map((file, index) => (
-                                                        <div key={index} className="relative group">
+                                                    {billCopies.map((file, index) => (
+                                                        <div
+                                                            key={index}
+                                                            className="relative group"
+                                                        >
                                                             <img
-                                                                src={URL.createObjectURL(file)}
+                                                                src={URL.createObjectURL(
+                                                                    file
+                                                                )}
                                                                 className="w-full h-32 object-cover rounded border"
-                                                                alt={`New Bill ${index + 1}`}
+                                                                alt={`New Bill ${index + 1
+                                                                    }`}
                                                             />
                                                             <button
                                                                 type="button"
                                                                 className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                onClick={() => removeBill(index)}
+                                                                onClick={() =>
+                                                                    removeBill(index)
+                                                                }
                                                             >
                                                                 ×
                                                             </button>
@@ -590,61 +672,101 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                     </div>
                                 )}
 
-                                {/* Notes */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block font-medium mb-2">Notes</label>
-                                        <input
-                                            type="text"
-                                            value={otherReasonText}
-                                            onChange={(e) => setOtherReasonText(e.target.value)}
-                                            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#E4002B] focus:outline-none"
-                                            placeholder="Notes"
-                                        />
-                                    </div>
+                                {/* Remarks */}
+                                <div>
+                                    <label className="block font-medium mb-2">
+                                        Remarks
+                                    </label>
+                                    <textarea
+                                        value={remarks}
+                                        onChange={(e) => setRemarks(e.target.value)}
+                                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#E4002B] focus:outline-none"
+                                        placeholder="Add remarks..."
+                                        rows="3"
+                                    />
                                 </div>
 
-                                {/* WINDOW DISPLAY / OTHERS - Images */}
-                                {(reportType?.value === "window" || reportType?.value === "others") && (
+                                {/* WINDOW DISPLAY - Images */}
+                                {reportType?.value === "Window Display" && (
                                     <div>
-                                        {/* Current Images */}
-                                        {report.images && report.images.length > 0 && (
-                                            <div className="mb-4">
-                                                <p className="text-sm font-medium text-gray-600 mb-2">
-                                                    Current Images ({report.images.filter((_, idx) => !removedImageIndices.includes(idx)).length}):
-                                                </p>
-                                                <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                                                    {report.images.map((img, idx) => (
-                                                        !removedImageIndices.includes(idx) && (
-                                                            <div key={idx} className="relative group">
-                                                                <img
-                                                                    src={img.base64}
-                                                                    alt={`Current ${idx + 1}`}
-                                                                    className="w-full h-20 object-cover rounded border"
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => removeCurrentImage(idx)}
-                                                                    className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                >
-                                                                    ×
-                                                                </button>
-                                                            </div>
-                                                        )
-                                                    ))}
+                                        {report.shopDisplayImages &&
+                                            report.shopDisplayImages.length > 0 && (
+                                                <div className="mb-4">
+                                                    <p className="text-sm font-medium text-gray-600 mb-2">
+                                                        Current Images (
+                                                        {
+                                                            report.shopDisplayImages.filter(
+                                                                (_, idx) =>
+                                                                    !removedImageIndices.includes(
+                                                                        idx
+                                                                    )
+                                                            ).length
+                                                        }
+                                                        ):
+                                                    </p>
+                                                    <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                                                        {report.shopDisplayImages.map(
+                                                            (img, idx) => {
+                                                                if (
+                                                                    removedImageIndices.includes(
+                                                                        idx
+                                                                    )
+                                                                )
+                                                                    return null;
+
+                                                                const imageSource =
+                                                                    bufferToBase64(
+                                                                        img.data,
+                                                                        img.contentType
+                                                                    );
+                                                                if (!imageSource)
+                                                                    return null;
+
+                                                                return (
+                                                                    <div
+                                                                        key={idx}
+                                                                        className="relative group"
+                                                                    >
+                                                                        <img
+                                                                            src={imageSource}
+                                                                            alt={`Current ${idx + 1
+                                                                                }`}
+                                                                            className="w-full h-20 object-cover rounded border"
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                removeCurrentImage(
+                                                                                    idx
+                                                                                )
+                                                                            }
+                                                                            className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                        >
+                                                                            ×
+                                                                        </button>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
+
                                         <label className="block font-medium mb-2">
-                                            {report.images && report.images.length > 0 ? "Add More Images" : "Upload Images"}
+                                            {report.shopDisplayImages &&
+                                                report.shopDisplayImages.length > 0
+                                                ? "Add More Images"
+                                                : "Upload Images"}
                                         </label>
                                         <label className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-[#E4002B]">
-                                            <span className="text-3xl text-gray-400">+</span>
+                                            <span className="text-3xl text-gray-400">
+                                                +
+                                            </span>
                                             <span>Click to upload new images</span>
                                             <input
                                                 type="file"
                                                 accept="image/*"
-                                                multiple={reportType?.value === "window"}
+                                                multiple
                                                 className="hidden"
                                                 onChange={handleImageChange}
                                             />
@@ -653,7 +775,10 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                         {images.length > 0 && (
                                             <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
                                                 {images.map((file, index) => (
-                                                    <div key={index} className="relative border-2 border-dashed rounded-lg overflow-hidden bg-gray-50 group">
+                                                    <div
+                                                        key={index}
+                                                        className="relative border-2 border-dashed rounded-lg overflow-hidden bg-gray-50 group"
+                                                    >
                                                         <img
                                                             src={URL.createObjectURL(file)}
                                                             className="w-full h-32 object-cover"
@@ -673,28 +798,143 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                     </div>
                                 )}
 
+                                {/* OTHERS - Files */}
+                                {reportType?.value === "Others" && (
+                                    <div>
+                                        {report.files && report.files.length > 0 && (
+                                            <div className="mb-4">
+                                                <p className="text-sm font-medium text-gray-600 mb-2">
+                                                    Current Files (
+                                                    {
+                                                        report.files.filter(
+                                                            (_, idx) =>
+                                                                !removedFileIndices.includes(
+                                                                    idx
+                                                                )
+                                                        ).length
+                                                    }
+                                                    ):
+                                                </p>
+                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                    {report.files.map((file, idx) => {
+                                                        if (
+                                                            removedFileIndices.includes(
+                                                                idx
+                                                            )
+                                                        )
+                                                            return null;
 
+                                                        const imageSource =
+                                                            bufferToBase64(
+                                                                file.data,
+                                                                file.contentType
+                                                            );
+                                                        if (!imageSource) return null;
+
+                                                        return (
+                                                            <div
+                                                                key={idx}
+                                                                className="relative group"
+                                                            >
+                                                                <img
+                                                                    src={imageSource}
+                                                                    alt={`File ${idx + 1}`}
+                                                                    className="w-full h-32 object-cover rounded border"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        removeCurrentFile(idx)
+                                                                    }
+                                                                    className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                >
+                                                                    ×
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <label className="block font-medium mb-2">
+                                            {report.files && report.files.length > 0
+                                                ? "Add More Files"
+                                                : "Upload Files"}
+                                        </label>
+                                        <label className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-[#E4002B]">
+                                            <span className="text-3xl text-gray-400">
+                                                +
+                                            </span>
+                                            <span>Click to upload files</span>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                multiple
+                                                className="hidden"
+                                                onChange={handleFilesChange}
+                                            />
+                                        </label>
+
+                                        {files.length > 0 && (
+                                            <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                {files.map((file, index) => (
+                                                    <div
+                                                        key={index}
+                                                        className="relative group"
+                                                    >
+                                                        <img
+                                                            src={URL.createObjectURL(file)}
+                                                            className="w-full h-32 object-cover rounded border"
+                                                            alt={`New File ${index + 1}`}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            onClick={() => removeFile(index)}
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </form>
                         ) : (
-                            // VIEW MODE - Display View (Your existing code)
+                            // VIEW MODE
                             <div className="space-y-6">
-                                {/* All your existing view mode sections */}
                                 {/* Basic Info */}
                                 <div className="bg-gray-50 p-4 rounded-lg">
-                                    <h3 className="text-lg font-semibold mb-4 text-gray-700">Basic Information</h3>
+                                    <h3 className="text-lg font-semibold mb-4 text-gray-700">
+                                        Basic Information
+                                    </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Report Type</label>
-                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.reportType || "N/A"}</p>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                Report Type
+                                            </label>
+                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                {report.reportType || "N/A"}
+                                            </p>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Submitted By</label>
-                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.submittedByRole || "N/A"}</p>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                Submitted By
+                                            </label>
+                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                {report.submittedBy?.role || "N/A"}
+                                            </p>
                                         </div>
                                         {report.frequency && (
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-600 mb-1">Frequency</label>
-                                                <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.frequency}</p>
+                                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                    Frequency
+                                                </label>
+                                                <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                    {report.frequency}
+                                                </p>
                                             </div>
                                         )}
                                     </div>
@@ -702,262 +942,387 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
 
                                 {/* Campaign Info */}
                                 <div className="bg-gray-50 p-4 rounded-lg">
-                                    <h3 className="text-lg font-semibold mb-4 text-gray-700">Campaign Information</h3>
+                                    <h3 className="text-lg font-semibold mb-4 text-gray-700">
+                                        Campaign Information
+                                    </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Campaign Name</label>
-                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.campaignName || "N/A"}</p>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                Campaign Name
+                                            </label>
+                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                {report.campaignId?.name || "N/A"}
+                                            </p>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Campaign Type</label>
-                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.campaignType || "N/A"}</p>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                Campaign Type
+                                            </label>
+                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                {report.campaignId?.type || "N/A"}
+                                            </p>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Client</label>
-                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.clientName || "N/A"}</p>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                Client
+                                            </label>
+                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                {report.campaignId?.client || "N/A"}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Retailer Info */}
                                 <div className="bg-gray-50 p-4 rounded-lg">
-                                    <h3 className="text-lg font-semibold mb-4 text-gray-700">Retailer Information</h3>
+                                    <h3 className="text-lg font-semibold mb-4 text-gray-700">
+                                        Retailer Information
+                                    </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Retailer Name</label>
-                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.retailerName || "N/A"}</p>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                Retailer Name
+                                            </label>
+                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                {report.retailer?.retailerName || "N/A"}
+                                            </p>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Retailer Code</label>
-                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.retailerCode || report.retailerUniqueId || "N/A"}</p>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                Outlet Code
+                                            </label>
+                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                {report.retailer?.outletCode || "N/A"}
+                                            </p>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Shop Name</label>
-                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.shopName || "N/A"}</p>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                Outlet Name
+                                            </label>
+                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                {report.retailer?.outletName || "N/A"}
+                                            </p>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Contact</label>
-                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.retailerContact || "N/A"}</p>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                Contact
+                                            </label>
+                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                {report.retailer?.retailerId
+                                                    ?.contactNo || "N/A"}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
+
                                 {/* Employee Info */}
-                                {report.employeeName && (
+                                {report.employee?.employeeName && (
                                     <div className="bg-gray-50 p-4 rounded-lg">
-                                        <h3 className="text-lg font-semibold mb-4 text-gray-700">Employee Information</h3>
+                                        <h3 className="text-lg font-semibold mb-4 text-gray-700">
+                                            Employee Information
+                                        </h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-600 mb-1">Employee Name</label>
-                                                <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.employeeName}</p>
+                                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                    Employee Name
+                                                </label>
+                                                <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                    {report.employee.employeeName}
+                                                </p>
                                             </div>
-                                            {report.employeeId.employeeId && (
+                                            {report.employee.employeeCode && (
                                                 <div>
-                                                    <label className="block text-sm font-medium text-gray-600 mb-1">Employee Code</label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.employeeId.employeeId}</p>
+                                                    <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                        Employee Code
+                                                    </label>
+                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                        {report.employee.employeeCode}
+                                                    </p>
                                                 </div>
                                             )}
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-600 mb-1">Phone</label>
-                                                <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.employeePhone || "N/A"}</p>
-                                            </div>
-                                            {report.employeeEmail && (
+                                            {report.employee.employeeId?.phone && (
                                                 <div>
-                                                    <label className="block text-sm font-medium text-gray-600 mb-1">Email</label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.employeeEmail}</p>
+                                                    <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                        Phone
+                                                    </label>
+                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                        {report.employee.employeeId.phone}
+                                                    </p>
                                                 </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Employee Visit Details in View Mode */}
+                                {report.submittedBy?.role === "Employee" && (
+                                    <div className="bg-gray-50 p-4 rounded-lg">
+                                        <h3 className="text-lg font-semibold mb-4 text-gray-700">
+                                            Visit Details
+                                        </h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                    Type of Visit
+                                                </label>
+                                                <p className="text-gray-800 bg-white px-3 py-2 rounded capitalize">
+                                                    {report.typeOfVisit || "N/A"}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                    Attendance Status
+                                                </label>
+                                                <p className={`px-3 py-2 rounded bg-white text-gray-800`}>
+                                                    {report.attendedVisit === "yes" ? "Attended" : "Not Attended"}
+                                                </p>
+                                            </div>
+                                            {report.attendedVisit === "no" && report.reasonForNonAttendance && (
+                                                <>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                            Reason
+                                                        </label>
+                                                        <p className="text-gray-800 bg-white px-3 py-2 rounded capitalize">
+                                                            {report.reasonForNonAttendance.reason || "N/A"}
+                                                        </p>
+                                                    </div>
+                                                    {report.reasonForNonAttendance.reason === "others" && report.reasonForNonAttendance.otherReason && (
+                                                        <div className="md:col-span-2">
+                                                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                                Additional Details
+                                                            </label>
+                                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                                {report.reasonForNonAttendance.otherReason}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                     </div>
                                 )}
 
                                 {/* Product/Stock Info */}
-                                {report.reportType === "stock" && (report.brand || report.product || report.sku || report.stockType) && (
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <h3 className="text-lg font-semibold mb-4 text-gray-700">Product/Stock Information</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {report.stockType && (
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-600 mb-1">Stock Type</label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.stockType}</p>
-                                                </div>
-                                            )}
-                                            {report.brand && (
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-600 mb-1">Brand</label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.brand}</p>
-                                                </div>
-                                            )}
-                                            {report.product && (
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-600 mb-1">Product</label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.product}</p>
-                                                </div>
-                                            )}
-                                            {report.sku && (
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-600 mb-1">SKU</label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.sku}</p>
-                                                </div>
-                                            )}
-                                            {report.productType && (
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-600 mb-1">Product Type</label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.productType}</p>
-                                                </div>
-                                            )}
-                                            {report.quantity && (
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-600 mb-1">Quantity</label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.quantity}</p>
-                                                </div>
-                                            )}
+                                {report.reportType === "Stock" &&
+                                    (report.brand ||
+                                        report.product ||
+                                        report.sku ||
+                                        report.stockType) && (
+                                        <div className="bg-gray-50 p-4 rounded-lg">
+                                            <h3 className="text-lg font-semibold mb-4 text-gray-700">
+                                                Product/Stock Information
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {report.stockType && (
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                            Stock Type
+                                                        </label>
+                                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                            {report.stockType}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {report.brand && (
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                            Brand
+                                                        </label>
+                                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                            {report.brand}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {report.product && (
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                            Product
+                                                        </label>
+                                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                            {report.product}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {report.sku && (
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                            SKU
+                                                        </label>
+                                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                            {report.sku}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {report.productType && (
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                            Product Type
+                                                        </label>
+                                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                            {report.productType}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {report.quantity && (
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                            Quantity
+                                                        </label>
+                                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                            {report.quantity}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
 
                                 {/* Date Info */}
                                 <div className="bg-gray-50 p-4 rounded-lg">
-                                    <h3 className="text-lg font-semibold mb-4 text-gray-700">Date Information</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        {report.fromDate && (
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-600 mb-1">From Date</label>
-                                                <p className="text-gray-800 bg-white px-3 py-2 rounded">{formatDate(report.fromDate)}</p>
-                                            </div>
-                                        )}
-                                        {report.toDate && (
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-600 mb-1">To Date</label>
-                                                <p className="text-gray-800 bg-white px-3 py-2 rounded">{formatDate(report.toDate)}</p>
-                                            </div>
-                                        )}
-                                        {report.visitDate && (
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-600 mb-1">Visit Date</label>
-                                                <p className="text-gray-800 bg-white px-3 py-2 rounded">{formatDate(report.visitDate)}</p>
-                                            </div>
-                                        )}
+                                    <h3 className="text-lg font-semibold mb-4 text-gray-700">
+                                        Date Information
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Submitted On</label>
-                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">{formatDate(report.createdAt)}</p>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                Submitted On
+                                            </label>
+                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                {formatDate(
+                                                    report.dateOfSubmission ||
+                                                    report.createdAt
+                                                )}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Additional Info */}
-                                {(report.otherReasonText) && (
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <h3 className="text-lg font-semibold mb-4 text-gray-700">Additional Information</h3>
-                                        <div className="space-y-3">
-                                            {report.otherReasonText && (
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-600 mb-1">Notes</label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">{report.otherReasonText}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Images */}
-                                {(report.reportType === "window" || report.reportType === "others") && report.images && report.images.length > 0 && (
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <h3 className="text-lg font-semibold mb-4 text-gray-700">Images ({report.images.length})</h3>
-                                        <div className="space-y-4">
-                                            <div className="relative bg-black rounded-lg overflow-hidden" style={{ height: '400px' }}>
-                                                <img
-                                                    src={report.images[activeImageIndex].base64}
-                                                    alt={`Report image ${activeImageIndex + 1}`}
-                                                    className="w-full h-full object-contain"
-                                                />
-                                                {report.images.length > 1 && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => setActiveImageIndex(prev => prev > 0 ? prev - 1 : report.images.length - 1)}
-                                                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full p-2 transition"
-                                                        >
-                                                            ←
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setActiveImageIndex(prev => prev < report.images.length - 1 ? prev + 1 : 0)}
-                                                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full p-2 transition"
-                                                        >
-                                                            →
-                                                        </button>
-                                                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
-                                                            {activeImageIndex + 1} / {report.images.length}
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </div>
-
-                                            {report.images.length > 1 && (
-                                                <div className="flex gap-2 overflow-x-auto pb-2">
-                                                    {report.images.map((img, idx) => (
-                                                        <button
-                                                            key={idx}
-                                                            onClick={() => setActiveImageIndex(idx)}
-                                                            className={`flex-shrink-0 w-20 h-20 rounded border-2 overflow-hidden transition ${activeImageIndex === idx ? 'border-[#E4002B]' : 'border-gray-300'}`}
-                                                        >
-                                                            <img
-                                                                src={img.base64}
-                                                                alt={`Thumbnail ${idx + 1}`}
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Bill Copies */}
-                                {report.reportType === "stock" && report.billCopies && report.billCopies.length > 0 && (
+                                {/* Remarks */}
+                                {report.remarks && (
                                     <div className="bg-gray-50 p-4 rounded-lg">
                                         <h3 className="text-lg font-semibold mb-4 text-gray-700">
-                                            Bill {report.billCopies.length > 1 ? 'Copies' : 'Copy'} ({report.billCopies.length})
+                                            Remarks
                                         </h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {report.billCopies.map((bill, idx) => {
-                                                // Convert Buffer to base64 if needed
-                                                let imageSource;
-
-                                                if (bill.data?.type === 'Buffer' && Array.isArray(bill.data?.data)) {
-                                                    // Convert Buffer array to base64
-                                                    const base64 = btoa(
-                                                        bill.data.data.reduce((data, byte) => data + String.fromCharCode(byte), '')
-                                                    );
-                                                    imageSource = `data:${bill.contentType};base64,${base64}`;
-                                                } else if (typeof bill.data === 'string') {
-                                                    // Already base64 string
-                                                    imageSource = bill.data.startsWith('data:')
-                                                        ? bill.data
-                                                        : `data:${bill.contentType};base64,${bill.data}`;
-                                                } else {
-                                                    imageSource = bill.data;
-                                                }
-
-                                                return (
-                                                    <div key={idx} className="relative bg-black rounded-lg overflow-hidden" style={{ height: '300px' }}>
-                                                        <img
-                                                            src={imageSource}
-                                                            alt={`Bill Copy ${idx + 1}`}
-                                                            className="w-full h-full object-contain"
-                                                            onError={(e) => {
-                                                                console.error('Image load error for bill:', bill);
-                                                                e.target.style.display = 'none';
-                                                            }}
-                                                        />
-                                                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
-                                                            {bill.fileName || `Bill ${idx + 1}`}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                            {report.remarks}
+                                        </p>
                                     </div>
                                 )}
+
+                                {/* Shop Display Images */}
+                                {report.reportType === "Window Display" &&
+                                    report.shopDisplayImages &&
+                                    report.shopDisplayImages.length > 0 && (
+                                        <div className="bg-gray-50 p-4 rounded-lg">
+                                            <h3 className="text-lg font-semibold mb-4 text-gray-700">
+                                                Shop Display Images (
+                                                {report.shopDisplayImages.length})
+                                            </h3>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                {report.shopDisplayImages.map(
+                                                    (img, idx) => {
+                                                        const imageSource =
+                                                            bufferToBase64(
+                                                                img.data,
+                                                                img.contentType
+                                                            );
+                                                        if (!imageSource) return null;
+
+                                                        return (
+                                                            <div
+                                                                key={idx}
+                                                                className="relative bg-black rounded-lg overflow-hidden"
+                                                                style={{ height: "200px" }}
+                                                            >
+                                                                <img
+                                                                    src={imageSource}
+                                                                    alt={`Display ${idx + 1}`}
+                                                                    className="w-full h-full object-contain"
+                                                                />
+                                                            </div>
+                                                        );
+                                                    }
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                {/* Bill Copies */}
+                                {report.reportType === "Stock" &&
+                                    report.billCopies &&
+                                    report.billCopies.length > 0 && (
+                                        <div className="bg-gray-50 p-4 rounded-lg">
+                                            <h3 className="text-lg font-semibold mb-4 text-gray-700">
+                                                Bill{" "}
+                                                {report.billCopies.length > 1
+                                                    ? "Copies"
+                                                    : "Copy"}{" "}
+                                                ({report.billCopies.length})
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {report.billCopies.map((bill, idx) => {
+                                                    const imageSource = bufferToBase64(
+                                                        bill.data,
+                                                        bill.contentType
+                                                    );
+                                                    if (!imageSource) return null;
+
+                                                    return (
+                                                        <div
+                                                            key={idx}
+                                                            className="relative bg-black rounded-lg overflow-hidden"
+                                                            style={{ height: "300px" }}
+                                                        >
+                                                            <img
+                                                                src={imageSource}
+                                                                alt={`Bill Copy ${idx + 1}`}
+                                                                className="w-full h-full object-contain"
+                                                            />
+                                                            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                                                                {bill.fileName ||
+                                                                    `Bill ${idx + 1}`}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                {/* Other Files */}
+                                {report.reportType === "Others" &&
+                                    report.files &&
+                                    report.files.length > 0 && (
+                                        <div className="bg-gray-50 p-4 rounded-lg">
+                                            <h3 className="text-lg font-semibold mb-4 text-gray-700">
+                                                Files ({report.files.length})
+                                            </h3>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                {report.files.map((file, idx) => {
+                                                    const imageSource = bufferToBase64(
+                                                        file.data,
+                                                        file.contentType
+                                                    );
+                                                    if (!imageSource) return null;
+
+                                                    return (
+                                                        <div
+                                                            key={idx}
+                                                            className="relative bg-black rounded-lg overflow-hidden"
+                                                            style={{ height: "200px" }}
+                                                        >
+                                                            <img
+                                                                src={imageSource}
+                                                                alt={`File ${idx + 1}`}
+                                                                className="w-full h-full object-contain"
+                                                            />
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                             </div>
                         )}
                     </div>
@@ -966,4 +1331,5 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
         </div>
     );
 };
+
 export default ReportDetailsModal;
