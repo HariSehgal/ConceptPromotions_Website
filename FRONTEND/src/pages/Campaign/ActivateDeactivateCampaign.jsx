@@ -7,7 +7,7 @@ const ActivateDeactivateCampaign = ({ campaignId, onBack }) => {
   const [status, setStatus] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const API_BASE = "https://srv1168036.hstgr.cloud";
+  const API_BASE = "https://conceptpromotions.in";
 
   // ✅ Fetch Campaign details
   const fetchCampaignDetails = async () => {

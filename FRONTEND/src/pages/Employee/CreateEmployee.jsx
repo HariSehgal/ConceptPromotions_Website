@@ -8,7 +8,7 @@ import { IoClose } from "react-icons/io5"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 
-const API_URL = "https://srv1168036.hstgr.cloud/api/admin/employees"
+const API_URL = "https://conceptpromotions.in/api/admin/employees"
 
 const jobRoleOptions = [
   "Programme Manager",

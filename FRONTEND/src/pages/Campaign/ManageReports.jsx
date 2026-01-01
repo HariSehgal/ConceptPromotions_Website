@@ -39,6 +39,14 @@ const ManageReports = () => {
     const [selectedEmployee, setSelectedEmployee] = useState(null);
     const [availableEmployees, setAvailableEmployees] = useState([]);
 
+    // Report Type Filter
+    const [selectedReportType, setSelectedReportType] = useState(null);
+    const reportTypeOptions = [
+        { value: "Window Display", label: "Window Display" },
+        { value: "Stock", label: "Stock" },
+        { value: "Others", label: "Others" },
+    ];
+
     // Date Range Filter
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
@@ -51,6 +59,11 @@ const ManageReports = () => {
     const [displayReports, setDisplayReports] = useState([]);
     const [loading, setLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
+
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalReports, setTotalReports] = useState(0);
 
     // Modal State
     const [showModal, setShowModal] = useState(false);
@@ -71,7 +84,7 @@ const ManageReports = () => {
         try {
             const token = localStorage.getItem("token");
             const res = await fetch(
-                "https://srv1168036.hstgr.cloud/api/admin/campaigns",
+                "https://conceptpromotions.in/api/admin/campaigns",
                 {
                     method: "GET",
                     headers: { Authorization: `Bearer ${token}` },
@@ -106,91 +119,150 @@ const ManageReports = () => {
         }
     };
 
+    // Replace the fetchRetailersAndEmployees function with this updated version:
+
     const fetchRetailersAndEmployees = async (campaignId) => {
         setModalLoading(true);
         try {
             const token = localStorage.getItem("token");
-            const res = await fetch(
-                `https://srv1168036.hstgr.cloud/api/admin/campaign/${campaignId}/employee-retailer-mapping`,
+
+            // Fetch the campaign details to get assigned retailers
+            const campaignRes = await fetch(
+                `https://conceptpromotions.in/api/admin/campaigns/${campaignId}`,
                 {
                     method: "GET",
                     headers: { Authorization: `Bearer ${token}` },
                 }
             );
-            const data = await res.json();
+            const campaignData = await campaignRes.json();
 
-            if (res.ok) {
-                // Extract all unique retailers from the mapping
-                const retailerSet = new Set();
-                const retailerData = [];
-                const stateSet = new Set();
+            if (!campaignRes.ok) {
+                toast.error("Failed to load campaign details", { theme: "dark" });
+                return;
+            }
 
-                data.employees.forEach(emp => {
-                    if (emp.retailers && emp.retailers.length > 0) {
-                        emp.retailers.forEach(retailer => {
-                            if (!retailerSet.has(retailer._id)) {
-                                retailerSet.add(retailer._id);
-                                retailerData.push(retailer);
+            const campaign = campaignData.campaign || campaignData;
 
-                                // Extract state
-                                const state = retailer.shopDetails?.shopAddress?.state;
-                                if (state) {
-                                    stateSet.add(state);
-                                }
-                            }
-                        });
+            // Get all retailers assigned to this campaign
+            const assignedRetailerIds = (campaign.assignedRetailers || []).map(
+                (ar) => (typeof ar === "string" ? ar : ar.retailerId?._id || ar.retailerId)
+            );
+
+            if (assignedRetailerIds.length === 0) {
+                toast.info("No retailers assigned to this campaign", { theme: "dark" });
+                setRetailers([]);
+                setEmployees([]);
+                setAvailableRetailers([]);
+                setAvailableEmployees([]);
+                setAvailableStates([]);
+                setModalLoading(false);
+                return;
+            }
+
+            // Fetch all retailers
+            const retailersRes = await fetch(
+                "https://conceptpromotions.in/api/admin/retailers",
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                }
+            );
+            const retailersData = await retailersRes.json();
+            const allRetailers = retailersData.retailers || [];
+
+            // Filter retailers that are assigned to this campaign
+            const campaignRetailers = allRetailers.filter((r) =>
+                assignedRetailerIds.includes(r._id)
+            );
+
+            // Extract unique states from campaign retailers
+            const stateSet = new Set();
+            campaignRetailers.forEach((retailer) => {
+                const state = retailer.shopDetails?.shopAddress?.state;
+                if (state) {
+                    stateSet.add(state);
+                }
+            });
+
+            // Format retailers: Outlet Name • Outlet Code • Retailer Name
+            const formattedRetailers = campaignRetailers.map((r) => {
+                const outletName = r.shopDetails?.shopName || "N/A";
+                const outletCode = r.uniqueId || "N/A";
+                const retailerName = r.name || "N/A";
+                const label = `${outletName} • ${outletCode} • ${retailerName}`;
+
+                return {
+                    value: r._id,
+                    label: label,
+                    data: r,
+                };
+            });
+
+            // Get assigned employees from campaign
+            const assignedEmployeeIds = (campaign.assignedEmployees || []).map(
+                (ae) => (typeof ae === "string" ? ae : ae.employeeId?._id || ae.employeeId)
+            );
+
+            if (assignedEmployeeIds.length > 0) {
+                // Fetch all employees
+                const employeesRes = await fetch(
+                    "https://conceptpromotions.in/api/admin/employees",
+                    {
+                        headers: { Authorization: `Bearer ${token}` },
                     }
-                });
+                );
+                const employeesData = await employeesRes.json();
+                const allEmployees = employeesData.employees || [];
 
-                // Format retailers: Outlet Name • Outlet Code • Retailer Name
-                const formattedRetailers = retailerData.map(r => {
-                    const outletName = r.shopDetails?.shopName || 'N/A';
-                    const outletCode = r.uniqueId || 'N/A';
-                    const retailerName = r.name || 'N/A';
-                    const label = `${outletName} • ${outletCode} • ${retailerName}`;
+                // Filter employees assigned to this campaign
+                const campaignEmployees = allEmployees.filter((e) =>
+                    assignedEmployeeIds.includes(e._id)
+                );
 
-                    return {
-                        value: r._id,
-                        label: label,
-                        data: r
-                    };
-                });
-
-                // Format employees: Employee Name • Employee Code (only employees with retailers)
-                const formattedEmployees = data.employees.map(e => {
-                    const employeeName = e.name || 'N/A';
-                    const employeeCode = e.employeeId || 'N/A';
+                // Format employees: Employee Name • Employee Code
+                const formattedEmployees = campaignEmployees.map((e) => {
+                    const employeeName = e.name || "N/A";
+                    const employeeCode = e.employeeId || "N/A";
                     const label = `${employeeName} • ${employeeCode}`;
 
                     return {
                         value: e._id,
                         label: label,
-                        data: e
+                        data: e,
                     };
                 });
 
-                // Format states
-                const formattedStates = Array.from(stateSet).map(state => ({
-                    value: state,
-                    label: state
-                }));
-
-                setRetailers(formattedRetailers);
                 setEmployees(formattedEmployees);
-                setAvailableRetailers(formattedRetailers);
-                setAvailableStates(formattedStates);
                 setAvailableEmployees(formattedEmployees);
+            } else {
+                setEmployees([]);
+                setAvailableEmployees([]);
+            }
+
+            // Format states
+            const formattedStates = Array.from(stateSet).map((state) => ({
+                value: state,
+                label: state,
+            }));
+
+            setRetailers(formattedRetailers);
+            setAvailableRetailers(formattedRetailers);
+            setAvailableStates(formattedStates);
+
+            if (formattedRetailers.length === 0) {
+                toast.info("No retailers found for this campaign", { theme: "dark" });
             }
         } catch (err) {
             console.error("Error fetching retailers/employees:", err);
-            toast.error("Failed to load retailers and employees", { theme: "dark" });
+            toast.error("Failed to load retailers and employees", {
+                theme: "dark",
+            });
         } finally {
             setModalLoading(false);
         }
     };
 
-    // ✅ Fetch Reports for Retailer
-    const fetchRetailerReports = async () => {
+    // ✅ Fetch Reports - Updated for new backend
+    const fetchReports = async (page = 1) => {
         if (!selectedCampaign) {
             toast.error("Please select a campaign first", { theme: "dark" });
             return;
@@ -202,10 +274,15 @@ const ManageReports = () => {
         try {
             const token = localStorage.getItem("token");
 
-            // Build query params
+            // Build query params using new API structure
             const params = new URLSearchParams();
             params.append("campaignId", selectedCampaign.value);
+            params.append("page", page);
+            params.append("limit", 50);
 
+            if (selectedReportType) {
+                params.append("reportType", selectedReportType.value);
+            }
             if (selectedRetailer) {
                 params.append("retailerId", selectedRetailer.value);
             }
@@ -213,17 +290,15 @@ const ManageReports = () => {
                 params.append("employeeId", selectedEmployee.value);
             }
             if (fromDate) {
-                params.append("fromDate", fromDate);
-            }
-            if (fromDate) {
-                params.append("fromDate", fromDate);
+                params.append("startDate", fromDate);
             }
             if (toDate) {
-                params.append("toDate", toDate);
+                params.append("endDate", toDate);
             }
 
+            // Use new API endpoint
             const res = await fetch(
-                `https://srv1168036.hstgr.cloud/api/admin/reports/campaign-retailers?${params.toString()}`,
+                `https://conceptpromotions.in/api/reports/all?${params.toString()}`,
                 {
                     method: "GET",
                     headers: { Authorization: `Bearer ${token}` },
@@ -244,26 +319,24 @@ const ManageReports = () => {
 
             // Client-side filter by state if selected
             if (selectedState) {
-                reports = reports.filter(report =>
-                    report.shopState === selectedState.value
-                );
-            }
-
-            if (selectedEmployee) {
-                reports = reports.filter(report =>
-                    report.employeeId?._id === selectedEmployee.value ||
-                    report.employeeId === selectedEmployee.value
+                reports = reports.filter(
+                    (report) =>
+                        report.retailer?.retailerId?.shopDetails?.shopAddress
+                            ?.state === selectedState.value
                 );
             }
 
             setDisplayReports(reports);
+            setTotalReports(data.pagination?.total || 0);
+            setCurrentPage(data.pagination?.page || 1);
+            setTotalPages(data.pagination?.pages || 1);
 
             if (reports.length === 0) {
                 toast.info("No reports found for the selected filters", {
                     theme: "dark",
                 });
             } else {
-                toast.success(`Found ${reports.length} report(s)`, {
+                toast.success(`Found ${data.pagination?.total || reports.length} report(s)`, {
                     theme: "dark",
                 });
             }
@@ -276,15 +349,14 @@ const ManageReports = () => {
         }
     };
 
+    // ✅ Submit Report - Updated for new backend
     const handleSubmitReport = async (formData) => {
         try {
             const token = localStorage.getItem("token");
 
-            // Add campaignId to formData
-            formData.append("campaignId", selectedCampaign.value);
-
+            // Use new API endpoint
             const res = await fetch(
-                "https://srv1168036.hstgr.cloud/api/admin/admin/reports",
+                "https://conceptpromotions.in/api/reports/create",
                 {
                     method: "POST",
                     headers: {
@@ -297,14 +369,18 @@ const ManageReports = () => {
             const data = await res.json();
 
             if (res.ok) {
-                toast.success("Report submitted successfully", { theme: "dark" });
+                toast.success("Report submitted successfully", {
+                    theme: "dark",
+                });
                 setShowModal(false);
                 // Refresh reports if already searched
                 if (hasSearched) {
-                    fetchRetailerReports();
+                    fetchReports(currentPage);
                 }
             } else {
-                toast.error(data.message || "Failed to submit report", { theme: "dark" });
+                toast.error(data.message || "Failed to submit report", {
+                    theme: "dark",
+                });
             }
         } catch (err) {
             console.error("Submit report error:", err);
@@ -318,6 +394,7 @@ const ManageReports = () => {
         setSelectedRetailer(null);
         setSelectedEmployee(null);
         setSelectedState(null);
+        setSelectedReportType(null);
         setFromDate("");
         setToDate("");
         setDisplayReports([]);
@@ -325,6 +402,7 @@ const ManageReports = () => {
         setAvailableRetailers([]);
         setAvailableEmployees([]);
         setAvailableStates([]);
+        setCurrentPage(1);
 
         if (selected) {
             fetchRetailersAndEmployees(selected.value);
@@ -336,10 +414,12 @@ const ManageReports = () => {
         setSelectedRetailer(null);
         setSelectedEmployee(null);
         setSelectedState(null);
+        setSelectedReportType(null);
         setFromDate("");
         setToDate("");
         setDisplayReports([]);
         setHasSearched(false);
+        setCurrentPage(1);
     };
 
     const formatValue = (value) => {
@@ -360,18 +440,42 @@ const ManageReports = () => {
     };
 
     // Handle View Details
-    const handleViewDetails = (report) => {
-        setSelectedReport(report);
-        setShowDetailsModal(true);
+    const handleViewDetails = async (report) => {
+        try {
+            const token = localStorage.getItem("token");
+
+            // Fetch full report details
+            const res = await fetch(
+                `https://conceptpromotions.in/api/reports/${report._id}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                }
+            );
+
+            const data = await res.json();
+            
+            console.log("Fetched report details:", data);
+
+            if (res.ok) {
+                setSelectedReport(data.report);
+                setShowDetailsModal(true);
+            } else {
+                toast.error("Failed to load report details", { theme: "dark" });
+            }
+        } catch (err) {
+            console.error("Error fetching report details:", err);
+            toast.error("Failed to load report details", { theme: "dark" });
+        }
     };
 
-    // Handle Update Report
     const handleUpdateReport = async (reportId, formData) => {
         try {
             const token = localStorage.getItem("token");
 
+            console.log("Updating report:", reportId);
+
             const res = await fetch(
-                `https://srv1168036.hstgr.cloud/api/admin/reports/${reportId}`,
+                `https://conceptpromotions.in/api/reports/update/${reportId}`,
                 {
                     method: "PUT",
                     headers: {
@@ -384,22 +488,31 @@ const ManageReports = () => {
             const data = await res.json();
 
             if (res.ok) {
-                toast.success("Report updated successfully", { theme: "dark" });
+                console.log("✅ Update response:", data);
+
+                toast.success("Report updated successfully!", { theme: "dark" });
+
+                // ✅ Close modal first
                 setShowDetailsModal(false);
-                // Refresh reports
+                setSelectedReport(null);
+
+                // ✅ Refresh the reports list
                 if (hasSearched) {
-                    fetchRetailerReports();
+                    await fetchReports(currentPage);
                 }
             } else {
-                toast.error(data.message || "Failed to update report", { theme: "dark" });
+                console.error("❌ Update failed:", data);
+                toast.error(data.message || "Failed to update report", {
+                    theme: "dark",
+                });
             }
         } catch (err) {
-            console.error("Update report error:", err);
+            console.error("❌ Update report error:", err);
             toast.error("Failed to update report", { theme: "dark" });
         }
     };
 
-    // Handle Delete Report
+    // ✅ Handle Delete Report - Updated for new backend
     const handleDeleteReport = async (reportId) => {
         if (!window.confirm("Are you sure you want to delete this report?")) {
             return;
@@ -409,7 +522,7 @@ const ManageReports = () => {
             const token = localStorage.getItem("token");
 
             const res = await fetch(
-                `https://srv1168036.hstgr.cloud/api/admin/reports/${reportId}`,
+                `https://conceptpromotions.in/api/reports/delete/${reportId}`,
                 {
                     method: "DELETE",
                     headers: {
@@ -425,14 +538,24 @@ const ManageReports = () => {
                 setShowDetailsModal(false);
                 // Refresh reports
                 if (hasSearched) {
-                    fetchRetailerReports();
+                    fetchReports(currentPage);
                 }
             } else {
-                toast.error(data.message || "Failed to delete report", { theme: "dark" });
+                toast.error(data.message || "Failed to delete report", {
+                    theme: "dark",
+                });
             }
         } catch (err) {
             console.error("Delete report error:", err);
             toast.error("Failed to delete report", { theme: "dark" });
+        }
+    };
+
+    // Handle page change
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+            fetchReports(newPage);
         }
     };
 
@@ -456,7 +579,9 @@ const ManageReports = () => {
                                     onClick={() => {
                                         setShowModal(true);
                                         if (retailers.length === 0) {
-                                            fetchRetailersAndEmployees(selectedCampaign.value);
+                                            fetchRetailersAndEmployees(
+                                                selectedCampaign.value
+                                            );
                                         }
                                     }}
                                     className="bg-[#E4002B] text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-[#C3002B] transition flex items-center gap-2"
@@ -497,15 +622,30 @@ const ManageReports = () => {
                         )}
                     </div>
 
-                    {/* Filters - Only for Retailer */}
+                    {/* Filters */}
                     {selectedCampaign && (
                         <div className="bg-[#EDEDED] rounded-lg shadow-md p-6 mb-6">
                             <h2 className="text-lg font-semibold mb-4 text-gray-700">
                                 Filter Reports
                             </h2>
 
-                            {/* First Row - State, Retailer, Employee */}
+                            {/* First Row - Report Type, State, Retailer */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Report Type (Optional)
+                                    </label>
+                                    <Select
+                                        value={selectedReportType}
+                                        onChange={setSelectedReportType}
+                                        options={reportTypeOptions}
+                                        styles={customSelectStyles}
+                                        placeholder="Select report type"
+                                        isSearchable
+                                        isClearable
+                                    />
+                                </div>
+
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         State (Optional)
@@ -535,7 +675,10 @@ const ManageReports = () => {
                                         isClearable
                                     />
                                 </div>
+                            </div>
 
+                            {/* Second Row - Employee and Date Filters */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Employee (Optional)
@@ -550,10 +693,7 @@ const ManageReports = () => {
                                         isClearable
                                     />
                                 </div>
-                            </div>
 
-                            {/* Second Row - Date Filters */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         From Date (Optional)
@@ -561,7 +701,9 @@ const ManageReports = () => {
                                     <input
                                         type="date"
                                         value={fromDate}
-                                        onChange={(e) => setFromDate(e.target.value)}
+                                        onChange={(e) =>
+                                            setFromDate(e.target.value)
+                                        }
                                         className="w-full px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-red-600 focus:outline-none"
                                     />
                                 </div>
@@ -581,21 +723,26 @@ const ManageReports = () => {
 
                             <div className="flex gap-3">
                                 <button
-                                    onClick={fetchRetailerReports}
+                                    onClick={() => fetchReports(1)}
                                     disabled={loading}
                                     className="bg-[#E4002B] text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-[#C3002B] transition disabled:bg-gray-400"
                                 >
                                     {loading ? "Searching..." : "Search Reports"}
                                 </button>
 
-                                {(selectedRetailer || selectedEmployee || selectedState || fromDate || toDate) && (
-                                    <button
-                                        onClick={handleClearFilters}
-                                        className="text-sm text-red-600 underline hover:text-red-800"
-                                    >
-                                        Clear Filters
-                                    </button>
-                                )}
+                                {(selectedRetailer ||
+                                    selectedEmployee ||
+                                    selectedState ||
+                                    selectedReportType ||
+                                    fromDate ||
+                                    toDate) && (
+                                        <button
+                                            onClick={handleClearFilters}
+                                            className="text-sm text-red-600 underline hover:text-red-800"
+                                        >
+                                            Clear Filters
+                                        </button>
+                                    )}
                             </div>
                         </div>
                     )}
@@ -605,7 +752,7 @@ const ManageReports = () => {
                         <div className="bg-[#EDEDED] rounded-lg shadow-md p-6">
                             <div className="flex justify-between items-center mb-6">
                                 <h2 className="text-lg font-semibold text-gray-700">
-                                    Reports ({displayReports.length} found)
+                                    Reports ({totalReports} found)
                                 </h2>
                             </div>
 
@@ -617,13 +764,10 @@ const ManageReports = () => {
                                                 Report Type
                                             </th>
                                             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                                                Retailer Name
+                                                Retailer
                                             </th>
                                             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                                                Shop Name
-                                            </th>
-                                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                                                Location
+                                                Outlet
                                             </th>
                                             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
                                                 Employee
@@ -643,43 +787,75 @@ const ManageReports = () => {
                                         {displayReports.map((report, index) => (
                                             <tr
                                                 key={report._id}
-                                                className={`${index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                                                className={`${index % 2 === 0
+                                                    ? "bg-white"
+                                                    : "bg-gray-50"
                                                     } hover:bg-gray-100 transition`}
                                             >
                                                 <td className="px-4 py-3 text-sm text-gray-800 border-b">
-                                                    {report.reportType || "N/A"}
+                                                    <span className="font-medium">
+                                                        {report.reportType || "N/A"}
+                                                    </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-gray-800 border-b">
-                                                    <div>{report.retailerName}</div>
+                                                    <div>
+                                                        {report.retailer?.retailerName ||
+                                                            "N/A"}
+                                                    </div>
                                                     <div className="text-xs text-gray-500">
-                                                        {report.retailerCode || report.retailerUniqueId}
+                                                        {report.retailer?.outletCode ||
+                                                            "N/A"}
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-gray-800 border-b">
-                                                    {report.shopName || "N/A"}
+                                                    {report.retailer?.outletName ||
+                                                        "N/A"}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-gray-800 border-b">
-                                                    <div>{report.shopCity}</div>
-                                                    <div className="text-xs text-gray-500">
-                                                        {report.shopState}
-                                                    </div>
+                                                    {report.employee?.employeeName ? (
+                                                        <>
+                                                            <div>
+                                                                {report.employee
+                                                                    ?.employeeName}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">
+                                                                {report.employee
+                                                                    ?.employeeCode ||
+                                                                    ""}
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        "N/A"
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-gray-800 border-b">
-                                                    <div>{report.employeeName || "N/A"}</div>
-                                                    <div className="text-xs text-gray-500">
-                                                        {report.employeePhone || ""}
-                                                    </div>
+                                                    <span
+                                                        className={`px-2 py-1 rounded text-xs font-medium ${report.submittedBy
+                                                            ?.role === "Admin"
+                                                            ? "bg-purple-100 text-purple-700"
+                                                            : report.submittedBy
+                                                                ?.role ===
+                                                                "Employee"
+                                                                ? "bg-blue-100 text-blue-700"
+                                                                : "bg-green-100 text-green-700"
+                                                            }`}
+                                                    >
+                                                        {report.submittedBy?.role ||
+                                                            "N/A"}
+                                                    </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-gray-800 border-b">
-                                                    {report.submittedByRole || "N/A"}
-                                                </td>
-                                                <td className="px-4 py-3 text-sm text-gray-800 border-b">
-                                                    {formatDate(report.createdAt)}
+                                                    {formatDate(
+                                                        report.dateOfSubmission ||
+                                                        report.createdAt
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-gray-800 border-b">
                                                     <button
-                                                        onClick={() => handleViewDetails(report)}
-                                                        className="text-[#E4002B] hover:underline"
+                                                        onClick={() =>
+                                                            handleViewDetails(report)
+                                                        }
+                                                        className="text-[#E4002B] hover:underline font-medium cursor-pointer"
                                                     >
                                                         View Details
                                                     </button>
@@ -689,6 +865,35 @@ const ManageReports = () => {
                                     </tbody>
                                 </table>
                             </div>
+
+                            {/* Pagination */}
+                            {totalPages > 1 && (
+                                <div className="flex justify-between items-center mt-6">
+                                    <div className="text-sm text-gray-600">
+                                        Page {currentPage} of {totalPages}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() =>
+                                                handlePageChange(currentPage - 1)
+                                            }
+                                            disabled={currentPage === 1}
+                                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Previous
+                                        </button>
+                                        <button
+                                            onClick={() =>
+                                                handlePageChange(currentPage + 1)
+                                            }
+                                            disabled={currentPage === totalPages}
+                                            className="px-4 py-2 bg-[#E4002B] text-white rounded hover:bg-[#C3002B] disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -700,13 +905,15 @@ const ManageReports = () => {
 
                     {!loading && hasSearched && displayReports.length === 0 && (
                         <div className="text-center py-8 text-gray-500 bg-[#EDEDED] rounded-lg">
-                            No reports found for the selected filters. Try adjusting your search criteria.
+                            No reports found for the selected filters. Try
+                            adjusting your search criteria.
                         </div>
                     )}
 
                     {!hasSearched && selectedCampaign && (
                         <div className="text-center py-8 text-gray-400 bg-[#EDEDED] rounded-lg">
-                            Click "Search Reports" to view reports for this campaign
+                            Click "Search Reports" to view reports for this
+                            campaign
                         </div>
                     )}
                 </div>
@@ -730,7 +937,9 @@ const ManageReports = () => {
                             </div>
 
                             {modalLoading ? (
-                                <div className="text-center py-8">Loading...</div>
+                                <div className="text-center py-8">
+                                    Loading...
+                                </div>
                             ) : (
                                 <SubmitReportForm
                                     retailers={retailers}
@@ -749,7 +958,10 @@ const ManageReports = () => {
             {showDetailsModal && selectedReport && (
                 <ReportDetailsModal
                     report={selectedReport}
-                    onClose={() => setShowDetailsModal(false)}
+                    onClose={() => {
+                        setShowDetailsModal(false);
+                        setSelectedReport(null);
+                    }}
                     onUpdate={handleUpdateReport}
                     onDelete={handleDeleteReport}
                 />

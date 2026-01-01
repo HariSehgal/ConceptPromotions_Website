@@ -1,76 +1,139 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 
 import Info from "./Info";
 import Gratification from "./Gratification";
-import Report from "./Report";
+import Report from "./EmployeeViewReports";
 import Period from "./Period";
 import Status from "./Status";
 import OutletsAssigned from "./OutletsAssigned";
 import SubmitReport from "./SubmitReport";
 
-const dummyData = {
-  1: {
-    name: "Monte Carlo Winter Festival",
-    startDate: "01-Apr-25",
-    endDate: "15-Apr-25",
-    description: "Employee incentive campaign for promoting winter wear.",
-    status: "Active",
-    gratification: "Earn bonus points for each sale",
-    terms: [
-      "Only valid for registered employees.",
-      "Applicable only on winter category products.",
-      "Performance will be reviewed weekly.",
-    ],
-  },
-
-  2: {
-    name: "ABCD Employee Drive",
-    startDate: "10-Apr-25",
-    endDate: "25-Apr-25",
-    description: "Sales push campaign with performance rewards.",
-    status: "Active",
-    gratification: "Top performers receive gift vouchers",
-    terms: [
-      "Only valid for active employees.",
-      "Daily reporting is mandatory.",
-      "Employees must follow product guidelines.",
-    ],
-  },
-
-  3: {
-    name: "Winter Dhamaka 2025",
-    startDate: "05-Apr-25",
-    endDate: "20-Apr-25",
-    description: "Sales performance campaign for winter collection.",
-    status: "Active",
-    gratification: "Earn up to ₹5000 bonus based on targets",
-    terms: [
-      "Employees must meet minimum weekly targets.",
-      "Only sales of eligible winter items count.",
-      "Bonus will be credited post-campaign.",
-    ],
-  },
-};
-
-const CampaignDetails = ({ campaignId, onBack }) => {
-  const campaign = dummyData[campaignId];
+const CampaignDetails = ({ campaign, onBack }) => {
+  const [campaignData, setCampaignData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("info");
 
-  if (!campaign) return <p>No campaign found.</p>;
+  const API_BASE_URL = "https://conceptpromotions.in/api";
+
+  // Fetch full campaign details on mount
+  useEffect(() => {
+    const fetchCampaignDetails = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const token = localStorage.getItem("token");
+        if (!token) {
+          setError("No authentication token found. Please login.");
+          setLoading(false);
+          return;
+        }
+
+        const response = await axios.get(
+          `${API_BASE_URL}/employee/campaigns/${campaign._id}/status`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+
+        setCampaignData(response.data);
+
+      } catch (err) {
+        console.error("Fetch campaign details error:", err);
+        setError(err.response?.data?.message || "Failed to fetch campaign details");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (campaign?._id) {
+      fetchCampaignDetails();
+    }
+  }, [campaign]);
+
+  // Format date helper
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    try {
+      return new Date(dateString).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch {
+      return "Invalid date";
+    }
+  };
+
+  // Prepare campaign object for child components
+  const campaignForComponents = campaignData ? {
+    name: campaignData.name,
+    startDate: formatDate(campaignData.employeeStatus?.startDate || campaignData.campaignStartDate),
+    endDate: formatDate(campaignData.employeeStatus?.endDate || campaignData.campaignEndDate),
+    client: campaignData.client,
+    type: campaignData.type,
+    status: campaignData.employeeStatus?.status || 'pending',
+    isActive: campaignData.isActive,
+    regions: campaignData.regions,
+    states: campaignData.states,
+    createdBy: campaignData.createdBy,
+    assignedAt: campaignData.employeeStatus?.assignedAt,
+    updatedAt: campaignData.employeeStatus?.updatedAt,
+    // Add any other fields your child components need
+  } : null;
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="text-lg text-gray-600">Loading campaign details...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 bg-white rounded-lg shadow-md">
+        <button
+          onClick={onBack}
+          className="mb-4 text-[#E4002B] font-medium hover:underline"
+        >
+          ← Back
+        </button>
+        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!campaignData) {
+    return (
+      <div className="p-6 bg-white rounded-lg shadow-md">
+        <button
+          onClick={onBack}
+          className="mb-4 text-[#E4002B] font-medium hover:underline"
+        >
+          ← Back
+        </button>
+        <p>No campaign found.</p>
+      </div>
+    );
+  }
 
   const tabComponents = {
-    info: <Info campaign={campaign} />,
-    gratification: <Gratification campaign={campaign} />,
-    report: <Report campaign={campaign} />,
-    period: <Period campaign={campaign} />,
-    status: <Status campaign={campaign} />,
-    outlets: <OutletsAssigned campaign={campaign} />,
-    submitReport: <SubmitReport campaign={campaign} />,
+    info: <Info campaign={campaignForComponents} />,
+    gratification: <Gratification campaign={campaignForComponents} />,
+    report: <Report campaign={campaignForComponents} />,
+    period: <Period campaign={campaignForComponents} />,
+    status: <Status campaign={campaignForComponents} />,
+    OutletsAssigned: <OutletsAssigned campaign={campaignForComponents} />,
+    submitReport: <SubmitReport campaign={campaignForComponents} />,
   };
 
   return (
     <div className="p-6 bg-white rounded-lg shadow-md">
-
       {/* Back */}
       <button
         onClick={onBack}
@@ -81,7 +144,7 @@ const CampaignDetails = ({ campaignId, onBack }) => {
 
       {/* Heading */}
       <h2 className="text-2xl font-bold text-[#E4002B] mb-6">
-        {campaign.name}
+        {campaignData.name}
       </h2>
 
       {/* Submit Report Button under heading */}
@@ -102,8 +165,8 @@ const CampaignDetails = ({ campaignId, onBack }) => {
           { key: "gratification", label: "Gratification" },
           { key: "report", label: "View Report" },
           { key: "period", label: "Period" },
-          { key: "outlets", label: "Outlets Assigned" },
           { key: "status", label: "Status" },
+          { key: "OutletsAssigned", label: "Outlets Assigned" },
         ].map((item) => (
           <button
             key={item.key}

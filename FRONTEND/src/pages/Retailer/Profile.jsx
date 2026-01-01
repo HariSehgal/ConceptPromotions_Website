@@ -21,7 +21,9 @@ import {
 } from "react-icons/fa";
 import { IoClose, IoChevronDown } from "react-icons/io5";
 
-const SearchableSelect = ({ label, placeholder, options, value, onChange, leftIcon }) => {
+const API_BASE = "https://conceptpromotions.in/api";
+
+const SearchableSelect = ({ label, placeholder, options, value, onChange, leftIcon, disabled }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef(null);
@@ -43,10 +45,10 @@ const SearchableSelect = ({ label, placeholder, options, value, onChange, leftIc
       <label className="block text-sm font-medium mb-1">{label}</label>
 
       <div
-        className="relative w-full border border-gray-300 rounded-lg cursor-pointer"
-        onClick={() => setOpen(true)}
+        className={`relative w-full border border-gray-300 rounded-lg ${disabled ? "bg-gray-100 cursor-not-allowed" : "cursor-pointer"
+          }`}
+        onClick={() => !disabled && setOpen(true)}
       >
-        {/* Left icon */}
         {leftIcon && (
           <span className="absolute left-3 top-[11px] text-gray-400">
             {leftIcon}
@@ -56,19 +58,21 @@ const SearchableSelect = ({ label, placeholder, options, value, onChange, leftIc
         <div className="flex items-center px-3 py-2">
           <input
             className={`flex-1 outline-none bg-transparent ${leftIcon ? "pl-6" : ""
-              }`}
+              } ${disabled ? "cursor-not-allowed" : ""}`}
             placeholder={value || placeholder}
             value={open ? search : value || ""}
             onChange={(e) => {
-              setSearch(e.target.value);
-              onChange && onChange("");
-              setOpen(true);
+              if (!disabled) {
+                setSearch(e.target.value);
+                onChange && onChange("");
+                setOpen(true);
+              }
             }}
-            onFocus={() => setOpen(true)}
+            onFocus={() => !disabled && setOpen(true)}
+            disabled={disabled}
           />
 
-          {/* Clear button */}
-          {value && (
+          {value && !disabled && (
             <button
               type="button"
               onClick={(e) => {
@@ -82,12 +86,11 @@ const SearchableSelect = ({ label, placeholder, options, value, onChange, leftIc
             </button>
           )}
 
-          {/* Down arrow */}
           <IoChevronDown className="ml-2 text-gray-400" />
         </div>
       </div>
 
-      {open && (
+      {open && !disabled && (
         <ul className="absolute z-50 w-full bg-white border border-gray-300 rounded-lg max-h-48 overflow-y-auto mt-1">
           {filtered.length > 0 ? (
             filtered.map((opt, idx) => (
@@ -112,8 +115,9 @@ const SearchableSelect = ({ label, placeholder, options, value, onChange, leftIc
   );
 };
 
-const FileInput = ({ label, accept = "*", file, setFile }) => {
+const FileInput = ({ label, accept = "*", file, setFile, existingImageUrl }) => {
   const fileRef = useRef();
+  const [preview, setPreview] = useState(existingImageUrl || null);
 
   useEffect(() => {
     return () => {
@@ -121,15 +125,25 @@ const FileInput = ({ label, accept = "*", file, setFile }) => {
     };
   }, [file]);
 
+  useEffect(() => {
+    if (existingImageUrl) {
+      setPreview(existingImageUrl);
+    }
+  }, [existingImageUrl]);
+
   function handleFileChange(e) {
     const f = e.target.files[0];
     if (!f) {
       setFile(null);
+      setPreview(existingImageUrl);
       return;
     }
-    const preview = f.type.startsWith("image/") ? URL.createObjectURL(f) : null;
-    setFile({ raw: f, preview, name: f.name });
+    const newPreview = f.type.startsWith("image/") ? URL.createObjectURL(f) : null;
+    setFile({ raw: f, preview: newPreview, name: f.name });
+    setPreview(newPreview);
   }
+
+  const hasFile = file || existingImageUrl;
 
   return (
     <div>
@@ -138,27 +152,28 @@ const FileInput = ({ label, accept = "*", file, setFile }) => {
         className="relative flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-[#E4002B] transition"
         onClick={() => fileRef.current?.click()}
       >
-        {!file ? (
+        {!hasFile ? (
           <>
             <FaPlus className="text-2xl text-gray-400 mb-2" />
             <p className="text-sm text-gray-500">Click or drop file here</p>
           </>
         ) : (
           <div className="flex flex-col items-center gap-2">
-            {file.preview ? (
+            {preview ? (
               <img
-                src={file.preview}
+                src={preview}
                 alt="preview"
                 className="w-20 h-16 object-cover rounded-md border"
               />
             ) : (
-              <p className="text-sm text-gray-700">{file.name}</p>
+              <p className="text-sm text-gray-700">{file?.name || "Existing file"}</p>
             )}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setFile(null);
+                setPreview(null);
                 if (fileRef.current) fileRef.current.value = "";
               }}
               className="flex items-center gap-1 text-red-500 text-xs hover:underline"
@@ -180,10 +195,15 @@ const FileInput = ({ label, accept = "*", file, setFile }) => {
   );
 };
 
-const Profile = () => {
+const formatDateForInput = (dateString) => {
+  if (!dateString) return "";
+  return new Date(dateString).toISOString().split("T")[0];
+};
+
+const RetailerProfile = () => {
   // Personal details
-  const [name, setName] = useState("Hari Sehgal");
-  const [contactNo, setContactNo] = useState("9310233356");
+  const [name, setName] = useState("");
+  const [contactNo, setContactNo] = useState("");
   const [altContactNo, setAltContactNo] = useState("");
   const [email, setEmail] = useState("");
   const [dob, setDob] = useState("");
@@ -194,7 +214,7 @@ const Profile = () => {
   const [govtIdNumber, setGovtIdNumber] = useState("");
 
   // Shop details
-  const [shopName, setShopName] = useState("Hari Garments");
+  const [shopName, setShopName] = useState("");
   const businessTypeOptions = [
     "Grocery Retailer",
     "Wholesale",
@@ -208,17 +228,17 @@ const Profile = () => {
     "Sole Proprietorship",
     "Partnership",
     "Private Ltd",
-    "LLP"
+    "LLP",
   ];
-  const [businessType, setBusinessType] = useState("Wholesale");
+  const [businessType, setBusinessType] = useState("");
   const [ownershipType, setOwnershipType] = useState("");
   const [gstNo, setGstNo] = useState("");
-  const [panCard, setPanCard] = useState("ABCDE1234F");
-  const [address1, setAddress1] = useState("Guru Ram Das Nagar, Laxmi Nagar");
+  const [panCard, setPanCard] = useState("");
+  const [address1, setAddress1] = useState("");
   const [address2, setAddress2] = useState("");
-  const [city, setCity] = useState("New Delhi");
-  const [state, setState] = useState("Delhi");
-  const [pincode, setPincode] = useState("110092");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [pincode, setPincode] = useState("");
 
   const [gstError, setGstError] = useState("");
 
@@ -233,10 +253,18 @@ const Profile = () => {
     "Other",
   ];
 
-  const [bankName, setBankName] = useState("HDFC Bank");
-  const [accountNumber, setAccountNumber] = useState("99909310233356");
-  const [ifsc, setIfsc] = useState("HDFC0001234");
-  const [branchName, setBranchName] = useState("Laxmi Nagar");
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [ifsc, setIfsc] = useState("");
+  const [branchName, setBranchName] = useState("");
+
+  // Track original bank details to detect changes
+  const [originalBankDetails, setOriginalBankDetails] = useState({
+    bankName: "",
+    accountNumber: "",
+    ifsc: "",
+    branchName: "",
+  });
 
   // Files
   const [govtIdPhoto, setGovtIdPhoto] = useState(null);
@@ -244,109 +272,332 @@ const Profile = () => {
   const [registrationFormFile, setRegistrationFormFile] = useState(null);
   const [outletPhoto, setOutletPhoto] = useState(null);
 
-  // Submission
+  // Existing images from backend
+  const [existingGovtIdPhoto, setExistingGovtIdPhoto] = useState(null);
+  const [existingPersonPhoto, setExistingPersonPhoto] = useState(null);
+  const [existingRegistrationForm, setExistingRegistrationForm] = useState(null);
+  const [existingOutletPhoto, setExistingOutletPhoto] = useState(null);
+
+  // UX
   const [submitting, setSubmitting] = useState(false);
-
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [isVerified, setIsVerified] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [ifscError, setIfscError] = useState("");
-  const [pennyChecked, setPennyChecked] = useState(false);
+  const [pennyCheck, setPennyCheck] = useState(false);
+  const [pennyCheckLocked, setPennyCheckLocked] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [tnc, setTnc] = useState(false);
+  const [tncLocked, setTncLocked] = useState(false);
+  const [error, setError] = useState("");
+  const isUpdatingFromBackend = useRef(false);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setSubmitting(true);
+  // LOAD PROFILE FROM BACKEND
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem("retailer_token");
+        if (!token) {
+          setLoading(false);
+          setError("No token found. Please log in.");
+          return;
+        }
 
-    // Collect all form values
-    const payload = {
-      name,
-      contactNo,
-      altContactNo,
-      email,
-      dob,
-      gender,
-      govtIdType,
-      govtIdNumber,
+        const res = await fetch(`${API_BASE}/retailer/retailer/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-      address1,
-      address2,
-      city,
-      state,
-      pincode,
+        if (!res.ok) {
+          const msg = await res.text();
+          throw new Error(msg || "Failed to load profile");
+        }
 
-      shopDetails: {
-        shopName,
-        businessType,
-        ownershipType,
-        GSTNo: gstNo,
-        PANCard: panCard,
-      },
+        const data = await res.json();
 
-      bankDetails: {
-        bankName,
-        accountNumber,
-        IFSC: ifsc,
-        branchName,
-      },
+        // Map backend -> frontend state
+        setName(data.name || "");
+        setContactNo(data.contactNo || "");
+        setAltContactNo(data.altContactNo || "");
+        setEmail(data.email || "");
+        setDob(formatDateForInput(data.dob) || "");
+        setGender(data.gender || "");
+        setGovtIdType(data.govtIdType || "");
+        setGovtIdNumber(data.govtIdNumber || "");
 
-      files: {
-        govtIdPhoto,
-        personPhoto,
-        registrationFormFile,
-        outletPhoto,
-      },
+        setShopName(data.shopDetails?.shopName || "");
+        setBusinessType(data.shopDetails?.businessType || "");
+        setOwnershipType(data.shopDetails?.ownershipType || "");
+        setGstNo(data.shopDetails?.GSTNo || "");
+        setPanCard(data.shopDetails?.PANCard || "");
+
+        setAddress1(data.shopDetails?.shopAddress?.address || "");
+        setAddress2(data.shopDetails?.shopAddress?.address2 || "");
+        setCity(data.shopDetails?.shopAddress?.city || "");
+        setState(data.shopDetails?.shopAddress?.state || "");
+        setPincode(data.shopDetails?.shopAddress?.pincode || "");
+
+        const bankDetails = {
+          bankName: data.bankDetails?.bankName || "",
+          accountNumber: data.bankDetails?.accountNumber || "",
+          ifsc: data.bankDetails?.IFSC || "",
+          branchName: data.bankDetails?.branchName || "",
+        };
+
+        setBankName(bankDetails.bankName);
+        setAccountNumber(bankDetails.accountNumber);
+        setIfsc(bankDetails.ifsc);
+        setBranchName(bankDetails.branchName);
+        setOriginalBankDetails(bankDetails);
+
+        // T&C and Penny Check
+        const tncValue = data.tnc || false;
+        const pennyValue = data.pennyCheck || false;
+
+        setTnc(tncValue);
+        setPennyCheck(pennyValue);
+
+        // Lock if already accepted
+        if (tncValue) setTncLocked(true);
+        if (pennyValue) setPennyCheckLocked(true);
+
+        // Fetch images
+        const imageStatusRes = await fetch(`${API_BASE}/retailer/retailer/image-status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (imageStatusRes.ok) {
+          const imageStatus = await imageStatusRes.json();
+
+          if (imageStatus.hasGovtIdPhoto) {
+            const imgRes = await fetch(`${API_BASE}/retailer/retailer/image/govtIdPhoto`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (imgRes.ok) {
+              const blob = await imgRes.blob();
+              setExistingGovtIdPhoto(URL.createObjectURL(blob));
+            }
+          }
+
+          if (imageStatus.hasPersonPhoto) {
+            const imgRes = await fetch(`${API_BASE}/retailer/retailer/image/personPhoto`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (imgRes.ok) {
+              const blob = await imgRes.blob();
+              setExistingPersonPhoto(URL.createObjectURL(blob));
+            }
+          }
+
+          if (imageStatus.hasRegistrationFormFile) {
+            const imgRes = await fetch(`${API_BASE}/retailer/retailer/image/registrationFormFile`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (imgRes.ok) {
+              const blob = await imgRes.blob();
+              setExistingRegistrationForm(URL.createObjectURL(blob));
+            }
+          }
+
+          if (imageStatus.hasOutletPhoto) {
+            const imgRes = await fetch(`${API_BASE}/retailer/retailer/image/outletPhoto`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (imgRes.ok) {
+              const blob = await imgRes.blob();
+              setExistingOutletPhoto(URL.createObjectURL(blob));
+            }
+          }
+        }
+
+        setLoading(false);
+      } catch (err) {
+        setError(err.message || "Error loading profile");
+        setLoading(false);
+      }
     };
 
-    // Show data in console
-    console.log("Submitted payload:", payload);
+    fetchProfile();
 
-    resetForm();
-    setSubmitting(false);
+    return () => {
+      if (existingGovtIdPhoto?.startsWith('blob:')) URL.revokeObjectURL(existingGovtIdPhoto);
+      if (existingPersonPhoto?.startsWith('blob:')) URL.revokeObjectURL(existingPersonPhoto);
+      if (existingRegistrationForm?.startsWith('blob:')) URL.revokeObjectURL(existingRegistrationForm);
+      if (existingOutletPhoto?.startsWith('blob:')) URL.revokeObjectURL(existingOutletPhoto);
+    };
+  }, []);
+
+  // Detect bank detail changes
+  useEffect(() => {
+    // Skip if we're updating from backend
+    if (isUpdatingFromBackend.current) {
+      return;
+    }
+    const bankChanged =
+      bankName !== originalBankDetails.bankName ||
+      accountNumber !== originalBankDetails.accountNumber ||
+      ifsc !== originalBankDetails.ifsc ||
+      branchName !== originalBankDetails.branchName;
+
+    if (bankChanged && pennyCheckLocked) {
+      setPennyCheck(false);
+      setPennyCheckLocked(false);
+    }
+  }, [bankName, accountNumber, ifsc, branchName, originalBankDetails, pennyCheckLocked]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const token = localStorage.getItem("retailer_token");
+      if (!token) {
+        setError("No token found. Please log in.");
+        setSubmitting(false);
+        return;
+      }
+
+      const formData = new FormData();
+
+      // Basic
+      formData.append("name", name);
+      formData.append("email", email);
+      formData.append("contactNo", contactNo);
+      formData.append("altContactNo", altContactNo);
+      formData.append("dob", dob || "");
+      formData.append("gender", gender || "");
+      formData.append("govtIdType", govtIdType || "");
+      formData.append("govtIdNumber", govtIdNumber || "");
+
+      // Shop details
+      formData.append("shopName", shopName);
+      formData.append("businessType", businessType || "");
+      formData.append("ownershipType", ownershipType || "");
+      formData.append("GSTNo", gstNo || "");
+      formData.append("PANCard", panCard);
+
+      // Shop address
+      formData.append("address", address1);
+      formData.append("address2", address2 || "");
+      formData.append("city", city);
+      formData.append("state", state);
+      formData.append("pincode", pincode);
+
+      // Bank details
+      formData.append("bankName", bankName);
+      formData.append("accountNumber", accountNumber);
+      formData.append("IFSC", ifsc);
+      formData.append("branchName", branchName);
+
+      // T&C and Penny Check
+      formData.append("tnc", tnc);
+      formData.append("pennyCheck", pennyCheck);
+
+      // Files - only append if changed
+      if (govtIdPhoto?.raw) formData.append("govtIdPhoto", govtIdPhoto.raw);
+      if (personPhoto?.raw) formData.append("personPhoto", personPhoto.raw);
+      if (registrationFormFile?.raw) formData.append("registrationFormFile", registrationFormFile.raw);
+      if (outletPhoto?.raw) formData.append("outletPhoto", outletPhoto.raw);
+
+      const res = await fetch(`${API_BASE}/retailer/me`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to update profile");
+      }
+
+      const updated = await res.json();
+      const r = updated.retailer || updated;
+
+      // SET FLAG TO PREVENT BANK CHANGE DETECTION
+      isUpdatingFromBackend.current = true;
+
+      // Update state with response
+      setEmail(r.email || "");
+      setDob(formatDateForInput(r.dob) || "");
+      setGender(r.gender || "");
+      setGovtIdType(r.govtIdType || "");
+      setGovtIdNumber(r.govtIdNumber || "");
+      setBusinessType(r.shopDetails?.businessType || "");
+      setOwnershipType(r.shopDetails?.ownershipType || "");
+      setGstNo(r.shopDetails?.GSTNo || "");
+      setPanCard(r.shopDetails?.PANCard || "");
+      setAddress1(r.shopDetails?.shopAddress?.address || "");
+      setAddress2(r.shopDetails?.shopAddress?.address2 || "");
+      setCity(r.shopDetails?.shopAddress?.city || "");
+      setState(r.shopDetails?.shopAddress?.state || "");
+      setPincode(r.shopDetails?.shopAddress?.pincode || "");
+
+      // Update bank details
+      const newBankDetails = {
+        bankName: r.bankDetails?.bankName || "",
+        accountNumber: r.bankDetails?.accountNumber || "",
+        ifsc: r.bankDetails?.IFSC || "",
+        branchName: r.bankDetails?.branchName || "",
+      };
+
+      setBankName(newBankDetails.bankName);
+      setAccountNumber(newBankDetails.accountNumber);
+      setIfsc(newBankDetails.ifsc);
+      setBranchName(newBankDetails.branchName);
+      setOriginalBankDetails(newBankDetails);
+
+      // Update T&C and Penny Check from backend response
+      const tncValue = r.tnc || false;
+      const pennyValue = r.pennyCheck || false;
+      setTnc(tncValue);
+      setPennyCheck(pennyValue);
+
+      // Lock if they're true
+      if (tncValue) setTncLocked(true);
+      if (pennyValue) setPennyCheckLocked(true);
+
+      // RESET FLAG AFTER A SHORT DELAY
+      setTimeout(() => {
+        isUpdatingFromBackend.current = false;
+      }, 100);
+
+      alert("Profile updated successfully");
+    } catch (err) {
+      isUpdatingFromBackend.current = false;
+      setError(err.message || "Error updating profile");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const resetForm = () => {
-    setName("Hari Sehgal");
-    setContactNo("9310233356");
-    setAltContactNo("");
-    setEmail("");
-    setDob("");
-    setGender("");
-    setGovtIdType("");
-    setGovtIdNumber("");
-    setShopName("Hari Garments");
-    setBusinessType("Wholesale");
-    setOwnershipType("");
-    setGstNo("");
-    setPanCard("ABCDE1234F");
-    setAddress1("Guru Ram Das Nagar, Laxmi Nagar");
-    setAddress2("");
-    setCity("New Delhi");
-    setState("Delhi");
-    setPincode("110092");
-    setBankName("HDFC Bank");
-    setAccountNumber("99909310233356");
-    setIfsc("HDFC0001234");
-    setBranchName("Laxmi Nagar");
 
-    setGovtIdPhoto(null);
-    setPersonPhoto(null);
-    setRegistrationFormFile(null);
-    setOutletPhoto(null);
-  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center w-full h-64">
+        <p className="text-gray-600">Loading profile...</p>
+      </div>
+    );
+  }
 
   return (
     <>
-      {/* Retailer Profile */}
       <div className="flex justify-center items-center w-full">
         <div className="w-full max-w-3xl bg-white shadow-md rounded-xl p-8">
-          <h1 className="text-2xl font-bold text-[#E4002B] text-center pb-8">Retailer Profile</h1>
+          <h1 className="text-2xl font-bold text-[#E4002B] text-center pb-8">
+            Complete Your Profile
+          </h1>
+
+          {error && (
+            <p className="mb-4 text-sm text-red-600 text-center">{error}</p>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Personal Details */}
             <section className="space-y-4">
-              <h3 className="text-lg font-medium text-[#E4002B]">Personal Details</h3>
+              <h3 className="text-lg font-medium text-[#E4002B]">
+                Personal Details
+              </h3>
 
               <div>
                 <label className="block text-sm font-medium mb-1">
@@ -367,36 +618,19 @@ const Profile = () => {
                 <label className="block text-sm font-medium mb-1">
                   Contact No <span className="text-red-500">*</span>
                 </label>
-
                 <div className="relative">
                   <FaPhoneAlt className="absolute left-3 top-3 text-gray-400" />
-
                   <input
                     type="tel"
                     value={contactNo}
-                    onChange={(e) => {
-                      setContactNo(e.target.value.replace(/\D/g, ""));
-                      setIsVerified(false); // reset verify if number changes
-                    }}
+                    onChange={(e) =>
+                      setContactNo(e.target.value.replace(/\D/g, ""))
+                    }
                     placeholder="+91 1234567890"
                     maxLength={10}
-                    className={`w-full pl-10 pr-20 py-2 border rounded-lg outline-none focus:ring-2
-        ${isVerified ? "border-green-500 focus:ring-green-500" : "border-gray-300 focus:ring-[#E4002B]"}
-      `}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
                     required
                   />
-
-                  {/* Verify Button */}
-                  <button
-                    type="button"
-                    disabled={contactNo.length !== 10}
-                    onClick={() => setShowOtpModal(true)}
-                    className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold
-        ${contactNo.length === 10 ? "text-[#E4002B] hover:underline" : "text-gray-400"}
-      `}
-                  >
-                    {isVerified ? "Verified ✓" : "Verify"}
-                  </button>
                 </div>
               </div>
 
@@ -409,7 +643,9 @@ const Profile = () => {
                   <input
                     type="tel"
                     value={altContactNo}
-                    onChange={(e) => setAltContactNo(e.target.value.replace(/\D/g, ""))}
+                    onChange={(e) =>
+                      setAltContactNo(e.target.value.replace(/\D/g, ""))
+                    }
                     placeholder="+91 1234567890"
                     maxLength={10}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
@@ -418,9 +654,7 @@ const Profile = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Email
-                </label>
+                <label className="block text-sm font-medium mb-1">Email</label>
                 <div className="relative">
                   <FaEnvelope className="absolute left-3 top-3 text-gray-400" />
                   <input
@@ -485,7 +719,9 @@ const Profile = () => {
 
             {/* Shop Details */}
             <section className="space-y-4">
-              <h3 className="text-lg font-medium text-[#E4002B]">Shop Details</h3>
+              <h3 className="text-lg font-medium text-[#E4002B]">
+                Shop Details
+              </h3>
 
               <div>
                 <label className="block text-sm font-medium mb-1">
@@ -530,24 +766,21 @@ const Profile = () => {
                   <label className="block text-sm font-medium mb-1">
                     GST No
                   </label>
-
                   <div className="relative">
-                    {/* Left Icon */}
                     <FaFileInvoice className="absolute left-3 top-3 text-gray-400" />
-
                     <input
                       type="text"
                       value={gstNo}
                       onChange={(e) => {
                         const val = e.target.value.toUpperCase();
                         setGstNo(val);
-
                         const gstRegex =
                           /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-
                         if (val === "") setGstError("");
                         else if (!gstRegex.test(val))
-                          setGstError("Invalid GST Number format (e.g., 29ABCDE1234F1Z5)");
+                          setGstError(
+                            "Invalid GST Number format (e.g., 29ABCDE1234F1Z5)"
+                          );
                         else setGstError("");
                       }}
                       placeholder="29ABCDE1234F1Z5"
@@ -557,17 +790,16 @@ const Profile = () => {
                         }`}
                     />
                   </div>
-
-                  {gstError && <p className="text-red-500 text-xs mt-1">{gstError}</p>}
+                  {gstError && (
+                    <p className="text-red-500 text-xs mt-1">{gstError}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-1">
                     PAN Card <span className="text-red-500">*</span>
                   </label>
-
                   <div className="relative">
-                    {/* Left icon */}
                     <FaIdCard className="absolute left-3 top-3 text-gray-400" />
                     <input
                       type="text"
@@ -584,11 +816,8 @@ const Profile = () => {
                 <label className="block text-sm font-medium mb-1">
                   Address Line 1 <span className="text-red-500">*</span>
                 </label>
-
                 <div className="relative">
-                  {/* Left icon */}
                   <FaMapMarkerAlt className="absolute left-3 top-3 text-gray-400" />
-
                   <input
                     type="text"
                     value={address1}
@@ -603,60 +832,46 @@ const Profile = () => {
                 <label className="block text-sm font-medium mb-1">
                   Address Line 2
                 </label>
-
                 <div className="relative">
-                  {/* Left icon */}
                   <FaMapMarkerAlt className="absolute left-3 top-3 text-gray-400" />
-
                   <input
                     type="text"
                     value={address2}
                     onChange={(e) => setAddress2(e.target.value)}
                     placeholder="Near XYZ landmark"
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 
-                 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
                   />
                 </div>
               </div>
 
-              {/* City, State, and Pincode */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">
                     City <span className="text-red-500">*</span>
                   </label>
-
                   <div className="relative">
-                    {/* Left icon */}
                     <FaCity className="absolute left-3 top-3 text-gray-400" />
-
                     <input
                       type="text"
                       value={city}
                       disabled
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 
-                 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
                       required
                     />
                   </div>
                 </div>
 
-
                 <div>
                   <label className="block text-sm font-medium mb-1">
                     State <span className="text-red-500">*</span>
                   </label>
-
                   <div className="relative">
-                    {/* Left icon */}
                     <FaMapMarkedAlt className="absolute left-3 top-3 text-gray-400" />
-
                     <input
                       type="text"
                       value={state}
                       disabled
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg
-                 bg-gray-100 text-gray-600 cursor-not-allowed"
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
                       required
                     />
                   </div>
@@ -666,28 +881,25 @@ const Profile = () => {
                   <label className="block text-sm font-medium mb-1">
                     Pincode <span className="text-red-500">*</span>
                   </label>
-
                   <div className="relative">
-                    {/* Left icon */}
                     <FaMapPin className="absolute left-3 top-3 text-gray-400" />
-
                     <input
                       type="text"
                       value={pincode}
                       disabled
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg 
-                 bg-gray-100 text-gray-600 cursor-not-allowed"
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
                       required
                     />
                   </div>
                 </div>
-
               </div>
             </section>
 
             {/* Bank Details */}
             <section className="space-y-4">
-              <h3 className="text-lg font-medium text-[#E4002B]">Bank Details</h3>
+              <h3 className="text-lg font-medium text-[#E4002B]">
+                Bank Details
+              </h3>
 
               <SearchableSelect
                 label={
@@ -706,18 +918,16 @@ const Profile = () => {
                 <label className="block text-sm font-medium mb-1">
                   Account Number <span className="text-red-500">*</span>
                 </label>
-
                 <div className="relative">
-                  {/* Left icon */}
                   <FaCreditCard className="absolute left-3 top-3 text-gray-400" />
-
                   <input
                     type="text"
                     value={accountNumber}
-                    onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
+                    onChange={(e) =>
+                      setAccountNumber(e.target.value.replace(/\D/g, ""))
+                    }
                     placeholder="123456789012"
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 
-                 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
                     required
                   />
                 </div>
@@ -727,34 +937,31 @@ const Profile = () => {
                 <label className="block text-sm font-medium mb-1">
                   IFSC <span className="text-red-500">*</span>
                 </label>
-
                 <div className="relative">
-                  {/* Left icon */}
                   <FaCode className="absolute left-3 top-3 text-gray-400" />
-
                   <input
                     type="text"
                     value={ifsc}
                     onChange={(e) => {
                       const val = e.target.value.toUpperCase();
                       setIfsc(val);
-
                       const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-
                       if (val === "") setIfscError("");
                       else if (!ifscRegex.test(val))
-                        setIfscError("Invalid IFSC Code format (e.g., HDFC0001234)");
+                        setIfscError(
+                          "Invalid IFSC Code format (e.g., HDFC0001234)"
+                        );
                       else setIfscError("");
                     }}
                     placeholder="HDFC0001234"
                     maxLength={11}
-                    className={`w-full pl-10 pr-4 py-2 border rounded-lg outline-none focus:ring-2 
-        ${ifscError ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-[#E4002B]"}
-      `}
+                    className={`w-full pl-10 pr-4 py-2 border rounded-lg outline-none focus:ring-2 ${ifscError
+                      ? "border-red-500 focus:ring-red-500"
+                      : "border-gray-300 focus:ring-[#E4002B]"
+                      }`}
                     required
                   />
                 </div>
-
                 {ifscError && (
                   <p className="text-red-500 text-xs mt-1">{ifscError}</p>
                 )}
@@ -764,36 +971,34 @@ const Profile = () => {
                 <label className="block text-sm font-medium mb-1">
                   Branch Name <span className="text-red-500">*</span>
                 </label>
-
                 <div className="relative">
-                  {/* Left icon */}
                   <FaStore className="absolute left-3 top-3 text-gray-400" />
-
                   <input
                     type="text"
                     value={branchName}
                     onChange={(e) => setBranchName(e.target.value)}
                     placeholder="Branch name"
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 
-                 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
                     required
                   />
                 </div>
               </div>
 
-              {/* Penny Drop Verification */}
               <div className="mt-2 flex items-start gap-2">
                 <input
                   type="checkbox"
-                  checked={pennyChecked}
-                  onChange={(e) => setPennyChecked(e.target.checked)}
+                  checked={pennyCheck}
+                  onChange={(e) => setPennyCheck(e.target.checked)}
+                  disabled={pennyCheckLocked}
                   className="mt-1 h-4 w-4 border-gray-300 rounded"
                   style={{ accentColor: "#E4002B" }}
-                  required
                 />
-
-                <label className="text-sm text-gray-700 leading-5 cursor-pointer">
-                  I confirm that I have received the ₹1 verification amount in my bank account.
+                <label className="text-sm text-gray-700 leading-5">
+                  I confirm that I have received the ₹1 verification amount in my
+                  bank account.
+                  {pennyCheckLocked && (
+                    <span className="text-green-600 ml-2">✓ Verified</span>
+                  )}
                 </label>
               </div>
             </section>
@@ -801,9 +1006,12 @@ const Profile = () => {
             {/* File Uploads */}
             <section className="space-y-4">
               <div>
-                <h3 className="text-lg font-medium text-[#E4002B]">File Uploads</h3>
+                <h3 className="text-lg font-medium text-[#E4002B]">
+                  File Uploads
+                </h3>
                 <p className="text-[11px] text-gray-500 mt-1">
-                  <span className="text-red-500">*</span> Accepted formats: PNG, JPG, JPEG, PDF, DOC — less than 1 MB
+                  <span className="text-red-500">*</span> Accepted formats: PNG,
+                  JPG, JPEG, PDF, DOC — less than 1 MB
                 </p>
               </div>
 
@@ -817,6 +1025,7 @@ const Profile = () => {
                   accept=".png,.jpg,.jpeg,.pdf,.doc"
                   file={govtIdPhoto}
                   setFile={setGovtIdPhoto}
+                  existingImageUrl={existingGovtIdPhoto}
                 />
 
                 <FileInput
@@ -828,17 +1037,15 @@ const Profile = () => {
                   accept=".png,.jpg,.jpeg,.pdf,.doc"
                   file={personPhoto}
                   setFile={setPersonPhoto}
+                  existingImageUrl={existingPersonPhoto}
                 />
 
                 <FileInput
-                  label={
-                    <>
-                      Registration Form
-                    </>
-                  }
+                  label={<>Registration Form</>}
                   accept=".png,.jpg,.jpeg,.pdf,.doc"
                   file={registrationFormFile}
                   setFile={setRegistrationFormFile}
+                  existingImageUrl={existingRegistrationForm}
                 />
 
                 <FileInput
@@ -850,6 +1057,7 @@ const Profile = () => {
                   accept=".png,.jpg,.jpeg,.pdf,.doc"
                   file={outletPhoto}
                   setFile={setOutletPhoto}
+                  existingImageUrl={existingOutletPhoto}
                 />
               </div>
             </section>
@@ -858,13 +1066,13 @@ const Profile = () => {
             <div className="flex items-center gap-2 mt-2">
               <input
                 type="checkbox"
-                checked={termsAccepted}
-                onChange={(e) => setTermsAccepted(e.target.checked)}
+                checked={tnc}
+                onChange={(e) => setTnc(e.target.checked)}
+                disabled={tncLocked}
                 required
                 className="h-4 w-4"
-                style={{ accentColor: "#E4002B" }} // red tick
+                style={{ accentColor: "#E4002B" }}
               />
-
               <label className="text-sm text-gray-700">
                 I agree to the{" "}
                 <button
@@ -874,6 +1082,9 @@ const Profile = () => {
                 >
                   Terms & Conditions
                 </button>
+                {tncLocked && (
+                  <span className="text-green-600 ml-2">✓ Accepted</span>
+                )}
               </label>
             </div>
 
@@ -881,75 +1092,30 @@ const Profile = () => {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full bg-[#E4002B] text-white py-3 rounded-lg font-medium hover:bg-[#C3002B] transition disabled:opacity-60"
+                className="w-full bg-[#E4002B] text-white py-3 rounded-lg font-medium hover:bg-[#C3002B] transition disabled:opacity-60 cursor-pointer"
               >
-                {submitting ? "Creating..." : "Create Retailer"}
+                {submitting ? "Saving..." : "Save Profile"}
               </button>
             </div>
           </form>
 
-          {/* Otp Modal */}
-          {showOtpModal && (
-            <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
-              <div className="bg-white p-6 rounded-xl shadow-xl w-80 text-center">
-
-                <h3 className="text-lg font-semibold mb-3">Enter OTP</h3>
-
-                <input
-                  type="text"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                  maxLength={6}
-                  placeholder="Enter 6-digit OTP"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B] mb-4"
-                />
-
-                <div className="flex justify-center gap-3">
-                  <button
-                    onClick={() => {
-                      setShowOtpModal(false);
-                      setOtp("");
-                    }}
-                    className="px-4 py-2 text-sm bg-gray-400 rounded-md hover:bg-gray-500 transition"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsVerified(true);
-                      setShowOtpModal(false);
-                      setOtp("");
-                    }}
-                    className="px-4 py-2 text-sm bg-[#E4002B] text-white rounded-md hover:bg-red-600 transition"
-                  >
-                    Verify
-                  </button>
-                </div>
-
-              </div>
-            </div>
-          )}
-
-          {/* Modal for Terms and Conditions */}
+          {/* Terms & Conditions Modal */}
           {showTerms && (
-            <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
-              <div className="bg-white text-gray-800 rounded-xl shadow-2xl w-[90%] md:w-[650px] relative p-6 border border-red-600 max-h-[80vh] overflow-y-auto">
-
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 transition-opacity duration-300">
+              <div className="bg-gray-900 text-gray-200 rounded-lg shadow-2xl w-[90%] md:w-[600px] relative p-6 border border-red-700 max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-thumb-red-600 scrollbar-track-gray-800 scrollbar-thumb-rounded-full">
                 {/* Close Button */}
                 <button
                   onClick={() => setShowTerms(false)}
-                  className="absolute top-3 right-3 text-gray-500 hover:text-red-600 transition"
+                  className="absolute top-3 right-3 text-gray-400 hover:text-red-500"
                 >
-                  <FaTimes size={18} />
+                  <FaTimes />
                 </button>
 
-                <h3 className="text-xl font-semibold mb-4 text-[#E4002B] text-center">
+                <h3 className="text-lg font-semibold mb-4 text-red-500 text-center">
                   Terms & Conditions
                 </h3>
 
-                <div className="text-sm text-gray-700 space-y-3 leading-relaxed">
-
+                <div className="text-xs text-gray-300 space-y-2 leading-relaxed text-justify">
                   <p>
                     <strong>Concept Promotions and events (CPE)</strong> respects your
                     privacy and is committed to protecting your personal data. This notice
@@ -962,7 +1128,6 @@ const Profile = () => {
                     <strong>1. Categories of Personal Data:</strong> We may Process the
                     following types of your personal data:
                   </p>
-
                   <ol className="list-[lower-alpha] ml-4 space-y-1">
                     <li>
                       Identity and/or contact information and other details
@@ -1010,7 +1175,6 @@ const Profile = () => {
                     <strong>2. Purposes of Processing:</strong> We Process your personal
                     data for:
                   </p>
-
                   <ol className="list-[lower-alpha] ml-4 space-y-1">
                     <li>
                       To meet our legal, regulatory or compliance obligations such as customer
@@ -1038,8 +1202,7 @@ const Profile = () => {
                       fraud, portfolio sensitivity analysis, etc.
                     </li>
                   </ol>
-
-                  <p className="text-gray-500 text-xs">
+                  <p className="text-gray-400 text-[11px]">
                     Note: We may undertake the abovementioned activities either ourselves or
                     through our affiliates or third parties such as vendors, service providers,
                     other regulated entities such as credit information companies and KYC
@@ -1057,36 +1220,67 @@ const Profile = () => {
                     any partners, collaborators, co-lenders, co-originators, merchants, aggregators,
                     lead generators, sourcing entities, clients, customers or other persons with
                     whom we have any direct or indirect arrangement or tie-up or contract for any
-                    products or services…
+                    products or services, any TPAPs, or other players/ intermediaries in any
+                    ecosystem of which the CPE is a part, with entities managing loyalty programmes,
+                    managing, generating and/or implementing any offers, discounts, cashbacks,
+                    chargebacks, features, etc., and such entities may share your personal data
+                    with their service providers, consultants, vendors, etc., for the purposes
+                    mentioned in this Notice. In certain cases, these entities, which receive your
+                    personal data from us may also be legally required to give you a notice
+                    regarding their Processing of your personal data and request for your consent
+                    before they Process the same. We encourage you to read their privacy notices
+                    and contact them if you have any questions regarding how they Process your
+                    personal data.
                   </p>
 
                   <p>
                     <strong>4. Withdrawal of Consent:</strong> You have the right to withdraw
-                    your consent anytime by following the process provided under the
-                    'Consent Withdrawal' section of the Privacy Policy.
+                    your consent at any time by following the process provided under the
+                    'Consent Withdrawal' section of the Privacy Policy. <br></br>
+                    Please note that our Processing of your personal data before you withdraw
+                    your consent will not be impacted. You should also be aware that if you withdraw
+                    your consent for us to Process your personal data for some of the purposes we
+                    have mentioned in this Notice, we may not be able to continue offering you the
+                    Requested Product. This could mean that the terms and conditions applicable to
+                    discontinuation or closure of your Requested Product will become applicable.<br></br>
+                    We encourage you to review the terms and conditions applicable to the Requested
+                    Product to understand the consequences of withdrawal of your consent in respect
+                    of use of your personal data.
                   </p>
 
                   <p>
-                    <strong>5. Grievances:</strong> If you believe that you have concerns
-                    regarding how we Process your personal data, contact:
+                    <strong>5. Grievances:</strong> If you believe that you have any concerns
+                    regarding how we Process your personal data, you have the right to let us
+                    know your grievances. Please contact us at the details provided under
+                    'Contact Information' below to register your concerns.
                   </p>
-
-                  <p className="text-[#E4002B] text-sm font-medium">
-                    manager@conceptpromotions.in
+                  <p className="text-gray-400 text-[11px]">
+                    <strong>Contact Information:</strong> <span className="text-red-500 hover:underline">manager@conceptpromotions.in</span>
                   </p>
 
                   <p>
-                    <strong>6. Consent Declaration:</strong> By providing your consent, you
-                    agree to:
+                    <strong>6. Consent Declaration:</strong> By providing your consent by ticking
+                    the checkbox, you acknowledge and agree to the following:
                   </p>
-
                   <ol className="list-[lower-alpha] ml-4 space-y-1">
-                    <li>You have read and understood this Notice.</li>
-                    <li>You give your consent voluntarily.</li>
-                    <li>You will provide accurate, updated personal data.</li>
-                    <li>CPE may Process your data as permitted by law.</li>
+                    <li>
+                      That you have read and understood the contents of this Notice and consent to
+                      the Processing of your personal data as described here.
+                    </li>
+                    <li>
+                      That you give your consent voluntarily, without any coercion or influence
+                      from the CPE or any other person.
+                    </li>
+                    <li>
+                      That you will provide and ensure that the CPE maintains accurate, updated,
+                      complete and consistent personal data.
+                    </li>
+                    <li>
+                      The CPE may Process your personal data for certain other purposes without
+                      your consent, where the law allows us to do so such as enforcement of a
+                      legal claim against you or for the CPE to make regulatory disclosures.
+                    </li>
                   </ol>
-
                 </div>
               </div>
             </div>
@@ -1097,4 +1291,4 @@ const Profile = () => {
   );
 };
 
-export default Profile;
+export default RetailerProfile;

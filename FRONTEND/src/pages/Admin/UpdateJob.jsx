@@ -26,7 +26,7 @@ const UpdateJob = ({ onEditJob }) => {
       }
 
       const response = await fetch(
-        "https://srv1168036.hstgr.cloud/api/admin/jobs",
+        "https://conceptpromotions.in/api/admin/jobs",
         {
           headers: {
             "Content-Type": "application/json",

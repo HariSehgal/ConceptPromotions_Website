@@ -25,7 +25,7 @@ const EditJob = ({ jobId, onBack }) => {  // ✅ receive jobId and onBack as pro
         const token = localStorage.getItem("token");
 
         const res = await fetch(
-          `https://srv1168036.hstgr.cloud/api/admin/career/jobs/${jobId}`,
+          `https://conceptpromotions.in/api/admin/career/jobs/${jobId}`,
           {
             headers: {
               "Content-Type": "application/json",
@@ -81,7 +81,7 @@ const EditJob = ({ jobId, onBack }) => {  // ✅ receive jobId and onBack as pro
       const token = localStorage.getItem("token");
 
       const res = await fetch(
-        `https://srv1168036.hstgr.cloud/api/admin/jobs/${jobId}`,
+        `https://conceptpromotions.in/api/admin/jobs/${jobId}`,
         {
           method: "PUT",
           headers: {

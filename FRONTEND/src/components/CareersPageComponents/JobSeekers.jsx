@@ -32,7 +32,7 @@ const JobSeekers = () => {
 
   // Fetch job roles
   useEffect(() => {
-    fetch("https://srv1168036.hstgr.cloud/api/career/jobs")
+    fetch("https://conceptpromotions.in/api/career/jobs")
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setJobs(data);
@@ -93,7 +93,7 @@ const JobSeekers = () => {
     formData.append("resume", file);
 
     try {
-      const response = await fetch("https://srv1168036.hstgr.cloud/api/career/apply", {
+      const response = await fetch("https://conceptpromotions.in/api/career/apply", {
         method: "POST",
         body: formData,
       });

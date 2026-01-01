@@ -18,7 +18,7 @@ const SignIn = () => {
 
     try {
       const response = await fetch(
-        "https://srv1168036.hstgr.cloud/api/admin/login",
+        "https://conceptpromotions.in/api/admin/login",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -32,41 +32,27 @@ const SignIn = () => {
         toast.error(data.message || "Login failed", {
           position: "top-right",
           autoClose: 3000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
           theme: "dark",
         });
         setLoading(false);
         return;
       }
 
-      // Save token and user info
       localStorage.setItem("token", data.token);
       localStorage.setItem("adminName", data.admin?.name || "");
       localStorage.setItem("adminEmail", data.admin?.email || "");
 
-      toast.success("Login successful! ✅", {
+      toast.success("Login successful!", {
         position: "top-right",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
+        autoClose: 2000,
         theme: "dark",
       });
 
       setTimeout(() => navigate("/dashboard"), 1500);
     } catch (error) {
-      console.error("Login error:", error);
-      toast.error("Something went wrong. Please try again.", {
+      toast.error("Something went wrong. Try again.", {
         position: "top-right",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
+        autoClose: 2000,
         theme: "dark",
       });
     } finally {
@@ -78,34 +64,40 @@ const SignIn = () => {
     <>
       <ToastContainer />
 
-      <nav className="fixed top-0 w-full z-50 bg-white shadow-md px-6 md:px-10">
+      {/* NAVBAR */}
+      <nav className="fixed top-0 w-full z-50 bg-black shadow-md px-6 md:px-10">
         <div className="flex justify-between items-center py-4 max-w-screen-xl mx-auto">
-          <img src="cpLogo.jpg" alt="Logo" className="h-14 cursor-pointer" />
+          <img src="supreme.png" alt="Logo" className="h-14 cursor-pointer" />
           <h2 className="absolute left-1/2 transform -translate-x-1/2 text-xl md:text-2xl font-bold text-[#E4002B]">
             Admin Login Page
           </h2>
         </div>
       </nav>
 
-      <div className="min-h-screen flex justify-center items-center bg-white px-4 pt-28 pb-10">
+      {/* MAIN */}
+      <div className="min-h-screen flex justify-center items-center bg-[#171717] px-4 pt-28 pb-10">
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold">Welcome!</h1>
-            <p className="text-gray-600 mt-2">
+            <h1 className="text-2xl font-bold text-white">Welcome!</h1>
+            <p className="text-gray-300 mt-2">
               Login is quick and easy. <br /> Let's get started on something
               great.
             </p>
           </div>
 
           <form className="space-y-5" onSubmit={handleLogin}>
+            {/* EMAIL */}
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
+              <label className="block text-sm font-medium mb-1 text-gray-200">
+                Email <span className="text-red-500">*</span>
+              </label>
               <div className="relative">
                 <FaEnvelope className="absolute left-3 top-3 text-gray-400" />
                 <input
                   type="email"
                   placeholder="example@gmail.com"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
+                  className="w-full pl-10 pr-4 py-2 bg-[#222] text-white border border-gray-600 rounded-lg 
+                  outline-none focus:ring-2 focus:ring-[#E4002B]"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -113,30 +105,36 @@ const SignIn = () => {
               </div>
             </div>
 
+            {/* PASSWORD */}
             <div>
-              <label className="block text-sm font-medium mb-1">Password</label>
+              <label className="block text-sm font-medium mb-1 text-gray-200">
+                Password <span className="text-red-500">*</span>
+              </label>
               <div className="relative">
                 <FaLock className="absolute left-3 top-3 text-gray-400" />
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="At least 8 characters"
-                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
+                  className="w-full pl-10 pr-10 py-2 bg-[#222] text-white border border-gray-600 rounded-lg 
+                  outline-none focus:ring-2 focus:ring-[#E4002B]"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
                 <div
-                  className="absolute right-3 top-3 text-gray-500 cursor-pointer"
+                  className="absolute right-3 top-3 text-gray-400 cursor-pointer"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? <IoEyeOffOutline /> : <IoEyeOutline />}
                 </div>
               </div>
-              <p className="text-right text-sm text-blue-500 mt-1 cursor-pointer hover:underline">
+
+              <p className="text-right text-sm text-blue-400 mt-1 cursor-pointer hover:underline">
                 Forgot password?
               </p>
             </div>
 
+            {/* BUTTON */}
             <button
               type="submit"
               disabled={loading}

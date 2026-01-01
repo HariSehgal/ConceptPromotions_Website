@@ -7,11 +7,28 @@ import CampaignDetails from "./CampaignDetails";
 import Passbook from "./Passbook";
 import Notifications from "./Notifications";
 import ContactUs from "./ContactUs";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const RetailerDashboard = () => {
     const [selectedComponent, setSelectedComponent] = useState("dashboard");
 
     const [selectedCampaignId, setSelectedCampaignId] = useState(null);
+
+    const handleLogout = () => {
+        localStorage.removeItem("retailer_token");
+        localStorage.removeItem("retailer_user");
+
+        toast.success("Logout successful!", {
+            position: "top-right",
+            autoClose: 1000,
+            theme: "dark",
+        });
+
+        setTimeout(() => {
+            window.location.href = "/retailersignin";
+        }, 1000);
+    };
 
     const handleViewCampaign = (id) => {
         setSelectedCampaignId(id);
@@ -51,14 +68,28 @@ const RetailerDashboard = () => {
     const activeClass = "text-[#E4002B] font-semibold";
 
     return (
-        <>
-            {/* TOP Navbar */}
-            <nav className="fixed top-0 w-full z-50 bg-white shadow-md px-6 md:px-10">
+        <>  
+            <ToastContainer />
+            {/* TOP NAVBAR */}
+            <nav className="fixed top-0 w-full z-50 bg-black shadow-md px-6 md:px-10 border-b border-red-500">
                 <div className="flex justify-between items-center py-4 max-w-screen-xl mx-auto relative">
-                    <img src="cpLogo.jpg" alt="Logo" className="h-12 cursor-pointer" />
+
+                    <img
+                        src="supreme.png"
+                        alt="Logo"
+                        className="h-14 cursor-pointer"
+                    />
+
                     <h2 className="absolute left-1/2 transform -translate-x-1/2 text-xl md:text-2xl font-bold text-[#E4002B]">
-                        Retailer Home Page
+                        Concept Promotions and Events
                     </h2>
+
+                    <button
+                        onClick={handleLogout}
+                        className="text-white border border-red-500 px-4 py-2 rounded-md hover:bg-red-500 transition cursor-pointer"
+                    >
+                        Logout
+                    </button>
                 </div>
             </nav>
 
