@@ -492,7 +492,7 @@ const campaignSchema = new Schema(
     ========================== */
         termsAndConditions: {
             type: String,
-            required: true,
+          
         },
 
         /* =========================

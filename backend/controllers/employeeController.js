@@ -10,7 +10,7 @@ import {
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import XLSX from "xlsx";
 import { Retailer } from "../models/retailer.model.js";
-
+import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.config.js";
 //   GET LOGGED-IN EMPLOYEE PROFILE
 export const getEmployeeProfile = async (req, res) => {
     try {

@@ -9,7 +9,7 @@ import { Employee } from "../models/user.js";
 // import { Retailer } from "../models/user.js";
 import { Retailer } from "../models/retailer.model.js";
 import { Campaign, VisitSchedule } from "../models/user.js";
-
+import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.config.js";
 /* ===============================
    HELPER: GET CORRECT MODEL BY REPORT TYPE
 =============================== */
@@ -34,10 +34,7 @@ export const createReport = async (req, res) => {
         console.log("BODY:", req.body);
         console.log("FILES:", req.files);
 
-        // When using multer with FormData, nested objects like submittedBy / retailer
-        // should be sent from frontend as bracket-style fields:
-        // submittedBy[role], submittedBy[userId], retailer[retailerId], etc.
-        // So we reconstruct them here.
+        // Reconstruct nested objects from FormData
         const {
             reportType,
             campaignId,
@@ -98,7 +95,9 @@ export const createReport = async (req, res) => {
                   }
                 : undefined;
 
-        // Validate required fields
+        /* =========================
+           VALIDATION
+        ========================== */
         if (!campaignId || !submittedBy || !retailerObj) {
             return res.status(400).json({
                 success: false,
@@ -106,7 +105,6 @@ export const createReport = async (req, res) => {
             });
         }
 
-        // Additional validation for attended visits
         if (attendedVisit === "yes" && !reportType) {
             return res.status(400).json({
                 success: false,
@@ -114,7 +112,6 @@ export const createReport = async (req, res) => {
             });
         }
 
-        // Validate campaign exists
         const campaign = await Campaign.findById(campaignId);
         if (!campaign) {
             return res.status(404).json({
@@ -123,7 +120,6 @@ export const createReport = async (req, res) => {
             });
         }
 
-        // Validate retailer exists
         const retailerDoc = await Retailer.findById(retailerObj.retailerId);
         if (!retailerDoc) {
             return res.status(404).json({
@@ -132,7 +128,6 @@ export const createReport = async (req, res) => {
             });
         }
 
-        // If employee submission, validate employee
         if (submittedBy.role === "Employee" && employeeObj?.employeeId) {
             const employeeDoc = await Employee.findById(employeeObj.employeeId);
             if (!employeeDoc) {
@@ -143,7 +138,6 @@ export const createReport = async (req, res) => {
             }
         }
 
-        // If attendedVisit is 'no', we don't need frequency or type-specific data
         if (attendedVisit === "no") {
             if (
                 !reasonForNonAttendance?.reason ||
@@ -157,7 +151,9 @@ export const createReport = async (req, res) => {
             }
         }
 
-        // Build base report data
+        /* =========================
+           BUILD BASE REPORT DATA
+        ========================== */
         const baseReportData = {
             campaignId,
             submittedBy,
@@ -178,12 +174,13 @@ export const createReport = async (req, res) => {
             location: location || undefined,
         };
 
-        // Get appropriate model based on report type
         const ReportModel = getReportModel(reportType);
 
         let reportData = { ...baseReportData };
 
-        // Add type-specific data only if visit was attended
+        /* =========================
+           ADD TYPE-SPECIFIC DATA
+        ========================== */
         if (attendedVisit === "yes" || submittedBy.role !== "Employee") {
             if (reportType === "Stock") {
                 reportData = {
@@ -198,54 +195,113 @@ export const createReport = async (req, res) => {
             }
         }
 
-        // Handle file uploads (images/bills/files) with multer (memoryStorage)
-        // upload.fields([{ name: "shopDisplayImages" }, { name: "billCopies" }, { name: "files" }])
+        /* =========================
+           UPLOAD FILES TO CLOUDINARY
+        ========================== */
         if (req.files) {
-            if (
-                reportType === "Window Display" &&
-                req.files.shopDisplayImages
-            ) {
+            // Window Display Images
+            if (reportType === "Window Display" && req.files.shopDisplayImages) {
                 const images = Array.isArray(req.files.shopDisplayImages)
                     ? req.files.shopDisplayImages
                     : [req.files.shopDisplayImages];
 
-                reportData.shopDisplayImages = images.map((file) => ({
-                    data: file.buffer, // multer: buffer
-                    contentType: file.mimetype,
-                    fileName: file.originalname,
-                }));
+                const uploadedImages = [];
+                for (const file of images) {
+                    try {
+                        const result = await uploadToCloudinary(
+                            file.buffer,
+                            "reports/window-display",
+                            "image"
+                        );
+
+                        uploadedImages.push({
+                            url: result.secure_url,
+                            publicId: result.public_id,
+                            fileName: file.originalname,
+                        });
+                    } catch (err) {
+                        return res.status(500).json({
+                            success: false,
+                            message: "Shop display image upload failed",
+                            error: err.message,
+                        });
+                    }
+                }
+                reportData.shopDisplayImages = uploadedImages;
             }
 
+            // Stock Bill Copies
             if (reportType === "Stock" && req.files.billCopies) {
                 const bills = Array.isArray(req.files.billCopies)
                     ? req.files.billCopies
                     : [req.files.billCopies];
 
-                reportData.billCopies = bills.map((file) => ({
-                    data: file.buffer,
-                    contentType: file.mimetype,
-                    fileName: file.originalname,
-                }));
+                const uploadedBills = [];
+                for (const file of bills) {
+                    try {
+                        const result = await uploadToCloudinary(
+                            file.buffer,
+                            "reports/bills",
+                            "raw" // For PDFs
+                        );
+
+                        uploadedBills.push({
+                            url: result.secure_url,
+                            publicId: result.public_id,
+                            fileName: file.originalname,
+                        });
+                    } catch (err) {
+                        return res.status(500).json({
+                            success: false,
+                            message: "Bill copy upload failed",
+                            error: err.message,
+                        });
+                    }
+                }
+                reportData.billCopies = uploadedBills;
             }
 
+            // Other Files
             if (reportType === "Others" && req.files.files) {
                 const otherFiles = Array.isArray(req.files.files)
                     ? req.files.files
                     : [req.files.files];
 
-                reportData.files = otherFiles.map((file) => ({
-                    data: file.buffer,
-                    contentType: file.mimetype,
-                    fileName: file.originalname,
-                }));
+                const uploadedFiles = [];
+                for (const file of otherFiles) {
+                    try {
+                        const result = await uploadToCloudinary(
+                            file.buffer,
+                            "reports/others",
+                            "raw" // For various file types
+                        );
+
+                        uploadedFiles.push({
+                            url: result.secure_url,
+                            publicId: result.public_id,
+                            fileName: file.originalname,
+                        });
+                    } catch (err) {
+                        return res.status(500).json({
+                            success: false,
+                            message: "File upload failed",
+                            error: err.message,
+                        });
+                    }
+                }
+                reportData.files = uploadedFiles;
             }
         }
 
-        // Create report
+        /* =========================
+           CREATE REPORT
+        ========================== */
         const newReport = new ReportModel(reportData);
         await newReport.save();
 
-        // If visit was attended and linked to schedule, update visit status
+        /* =========================
+           UPDATE VISIT SCHEDULE
+        ========================== */
         if (visitScheduleId && attendedVisit === "yes") {
             await VisitSchedule.findByIdAndUpdate(visitScheduleId, {
                 status: "Completed",
@@ -270,6 +326,7 @@ export const createReport = async (req, res) => {
         });
     }
 };
+
 
 /* ===============================
    GET ALL REPORTS (WITH FILTERS)
@@ -446,6 +503,9 @@ export const getReportById = async (req, res) => {
 /* ===============================
    UPDATE REPORT (ADMIN ONLY) - FIXED VERSION
 =============================== */
+/* ===============================
+   UPDATE REPORT (ADMIN ONLY) - WITH CLOUDINARY
+=============================== */
 export const updateReport = async (req, res) => {
     try {
         const { id } = req.params;
@@ -454,7 +514,7 @@ export const updateReport = async (req, res) => {
         console.log("UPDATE BODY:", req.body);
         console.log("UPDATE FILES:", req.files);
 
-        // Parse removed indices (they come as JSON strings from FormData)
+        // Parse removed indices
         const removedImageIndices = req.body.removedImageIndices
             ? JSON.parse(req.body.removedImageIndices)
             : [];
@@ -494,55 +554,140 @@ export const updateReport = async (req, res) => {
         const oldReportType = existingReport.reportType;
         const newReportType = updateData.reportType || oldReportType;
 
-        // Process new file uploads into plain objects
+        /* =========================
+           UPLOAD NEW FILES TO CLOUDINARY
+        ========================== */
         const newFiles = {};
 
         if (req.files && Object.keys(req.files).length > 0) {
+            // Upload shop display images
             if (req.files.shopDisplayImages) {
                 const images = Array.isArray(req.files.shopDisplayImages)
                     ? req.files.shopDisplayImages
                     : [req.files.shopDisplayImages];
 
-                newFiles.shopDisplayImages = images.map((file) => ({
-                    data: file.buffer,
-                    contentType: file.mimetype,
-                    fileName: file.originalname,
-                    uploadedAt: new Date(),
-                }));
+                const uploadedImages = [];
+                for (const file of images) {
+                    try {
+                        const result = await uploadToCloudinary(
+                            file.buffer,
+                            "reports/window-display",
+                            "image"
+                        );
+
+                        uploadedImages.push({
+                            url: result.secure_url,
+                            publicId: result.public_id,
+                            fileName: file.originalname,
+                        });
+                    } catch (err) {
+                        return res.status(500).json({
+                            success: false,
+                            message: "Image upload failed",
+                            error: err.message,
+                        });
+                    }
+                }
+                newFiles.shopDisplayImages = uploadedImages;
             }
 
+            // Upload bill copies
             if (req.files.billCopies) {
                 const bills = Array.isArray(req.files.billCopies)
                     ? req.files.billCopies
                     : [req.files.billCopies];
 
-                newFiles.billCopies = bills.map((file) => ({
-                    data: file.buffer,
-                    contentType: file.mimetype,
-                    fileName: file.originalname,
-                    uploadedAt: new Date(),
-                }));
+                const uploadedBills = [];
+                for (const file of bills) {
+                    try {
+                        const result = await uploadToCloudinary(
+                            file.buffer,
+                            "reports/bills",
+                            "raw"
+                        );
+
+                        uploadedBills.push({
+                            url: result.secure_url,
+                            publicId: result.public_id,
+                            fileName: file.originalname,
+                        });
+                    } catch (err) {
+                        return res.status(500).json({
+                            success: false,
+                            message: "Bill upload failed",
+                            error: err.message,
+                        });
+                    }
+                }
+                newFiles.billCopies = uploadedBills;
             }
 
+            // Upload other files
             if (req.files.files) {
                 const otherFiles = Array.isArray(req.files.files)
                     ? req.files.files
                     : [req.files.files];
 
-                newFiles.files = otherFiles.map((file) => ({
-                    data: file.buffer,
-                    contentType: file.mimetype,
-                    fileName: file.originalname,
-                    uploadedAt: new Date(),
-                }));
+                const uploadedFiles = [];
+                for (const file of otherFiles) {
+                    try {
+                        const result = await uploadToCloudinary(
+                            file.buffer,
+                            "reports/others",
+                            "raw"
+                        );
+
+                        uploadedFiles.push({
+                            url: result.secure_url,
+                            publicId: result.public_id,
+                            fileName: file.originalname,
+                        });
+                    } catch (err) {
+                        return res.status(500).json({
+                            success: false,
+                            message: "File upload failed",
+                            error: err.message,
+                        });
+                    }
+                }
+                newFiles.files = uploadedFiles;
             }
         }
 
         // ---------- HANDLE REPORT TYPE CHANGE ----------
         if (newReportType !== oldReportType) {
-            console.log(
-                `🔄 Changing report type from ${oldReportType} to ${newReportType}`
-            );
+            console.log(`🔄 Changing report type from ${oldReportType} to ${newReportType}`);
+
+            /* =========================
+               DELETE OLD FILES FROM CLOUDINARY
+            ========================== */
+            if (existingReport.shopDisplayImages) {
+                for (const img of existingReport.shopDisplayImages) {
+                    try {
+                        await deleteFromCloudinary(img.publicId, "image");
+                    } catch (err) {
+                        console.error(`Failed to delete image ${img.publicId}:`, err);
+                    }
+                }
+            }
+            if (existingReport.billCopies) {
+                for (const bill of existingReport.billCopies) {
+                    try {
+                        await deleteFromCloudinary(bill.publicId, "raw");
+                    } catch (err) {
+                        console.error(`Failed to delete bill ${bill.publicId}:`, err);
+                    }
+                }
+            }
+            if (existingReport.files) {
+                for (const file of existingReport.files) {
+                    try {
+                        await deleteFromCloudinary(file.publicId, "raw");
+                    } catch (err) {
+                        console.error(`Failed to delete file ${file.publicId}:`, err);
+                    }
+                }
+            }
 
             await Report.findByIdAndDelete(id);
             const NewReportModel = getReportModel(newReportType);
@@ -551,18 +696,12 @@ export const updateReport = async (req, res) => {
                 _id: id,
                 reportType: newReportType,
                 campaignId: existingReport.campaignId,
-                submittedBy:
-                    updateData.submittedBy || existingReport.submittedBy,
+                submittedBy: updateData.submittedBy || existingReport.submittedBy,
                 retailer: updateData.retailer || existingReport.retailer,
                 employee: updateData.employee || existingReport.employee,
                 frequency: updateData.frequency || existingReport.frequency,
-                dateOfSubmission:
-                    updateData.dateOfSubmission ||
-                    existingReport.dateOfSubmission,
-                remarks:
-                    updateData.remarks !== undefined
-                        ? updateData.remarks
-                        : existingReport.remarks,
+                dateOfSubmission: updateData.dateOfSubmission || existingReport.dateOfSubmission,
+                remarks: updateData.remarks !== undefined ? updateData.remarks : existingReport.remarks,
                 visitScheduleId: existingReport.visitScheduleId,
                 typeOfVisit: existingReport.typeOfVisit,
                 attendedVisit: existingReport.attendedVisit,
@@ -584,8 +723,7 @@ export const updateReport = async (req, res) => {
                 }
             } else if (newReportType === "Window Display") {
                 if (newFiles.shopDisplayImages) {
-                    newReportData.shopDisplayImages =
-                        newFiles.shopDisplayImages;
+                    newReportData.shopDisplayImages = newFiles.shopDisplayImages;
                 }
             } else if (newReportType === "Others") {
                 if (newFiles.files) {
@@ -603,9 +741,9 @@ export const updateReport = async (req, res) => {
             });
         }
 
-        // ---------- SAME REPORT TYPE: HANDLE ARRAYS ON DOC, THEN SAVE ----------
+        // ---------- SAME REPORT TYPE: HANDLE ARRAYS WITH CLOUDINARY ----------
 
-        // Update common scalar fields on the existing doc
+        // Update common scalar fields
         if (updateData.frequency !== undefined) {
             existingReport.frequency = updateData.frequency;
         }
@@ -621,46 +759,46 @@ export const updateReport = async (req, res) => {
 
         // Stock-specific scalar fields
         if (oldReportType === "Stock") {
-            if (updateData.stockType)
-                existingReport.stockType = updateData.stockType;
+            if (updateData.stockType) existingReport.stockType = updateData.stockType;
             if (updateData.brand) existingReport.brand = updateData.brand;
             if (updateData.product) existingReport.product = updateData.product;
             if (updateData.sku) existingReport.sku = updateData.sku;
-            if (updateData.productType)
-                existingReport.productType = updateData.productType;
-            if (updateData.quantity)
-                existingReport.quantity = updateData.quantity;
+            if (updateData.productType) existingReport.productType = updateData.productType;
+            if (updateData.quantity) existingReport.quantity = updateData.quantity;
         }
 
-        // Now handle file arrays directly on existingReport
+        // Handle file arrays with Cloudinary deletion
         if (oldReportType === "Window Display") {
             let existingImages = existingReport.shopDisplayImages || [];
 
             console.log("Before removal - Image count:", existingImages.length);
 
+            /* =========================
+               DELETE REMOVED IMAGES FROM CLOUDINARY
+            ========================== */
             if (removedImageIndices.length > 0) {
+                const imagesToDelete = removedImageIndices.map(idx => existingImages[idx]);
+                
+                for (const img of imagesToDelete) {
+                    if (img?.publicId) {
+                        try {
+                            await deleteFromCloudinary(img.publicId, "image");
+                        } catch (err) {
+                            console.error(`Failed to delete image ${img.publicId}:`, err);
+                        }
+                    }
+                }
+
                 existingImages = existingImages.filter(
                     (_, idx) => !removedImageIndices.includes(idx)
                 );
-                console.log(
-                    "After removal - Image count:",
-                    existingImages.length
-                );
+                console.log("After removal - Image count:", existingImages.length);
             }
 
             if (newFiles.shopDisplayImages) {
-                console.log(
-                    "Adding new images:",
-                    newFiles.shopDisplayImages.length
-                );
-                existingImages = [
-                    ...existingImages,
-                    ...newFiles.shopDisplayImages,
-                ];
-                console.log(
-                    "After addition - Image count:",
-                    existingImages.length
-                );
+                console.log("Adding new images:", newFiles.shopDisplayImages.length);
+                existingImages = [...existingImages, ...newFiles.shopDisplayImages];
+                console.log("After addition - Image count:", existingImages.length);
             }
 
             existingReport.shopDisplayImages = existingImages;
@@ -670,23 +808,32 @@ export const updateReport = async (req, res) => {
 
             console.log("Before removal - Bill count:", existingBills.length);
 
+            /* =========================
+               DELETE REMOVED BILLS FROM CLOUDINARY
+            ========================== */
             if (removedBillIndices.length > 0) {
+                const billsToDelete = removedBillIndices.map(idx => existingBills[idx]);
+                
+                for (const bill of billsToDelete) {
+                    if (bill?.publicId) {
+                        try {
+                            await deleteFromCloudinary(bill.publicId, "raw");
+                        } catch (err) {
+                            console.error(`Failed to delete bill ${bill.publicId}:`, err);
+                        }
+                    }
+                }
+
                 existingBills = existingBills.filter(
                     (_, idx) => !removedBillIndices.includes(idx)
                 );
-                console.log(
-                    "After removal - Bill count:",
-                    existingBills.length
-                );
+                console.log("After removal - Bill count:", existingBills.length);
             }
 
             if (newFiles.billCopies) {
                 console.log("Adding new bills:", newFiles.billCopies.length);
                 existingBills = [...existingBills, ...newFiles.billCopies];
-                console.log(
-                    "After addition - Bill count:",
-                    existingBills.length
-                );
+                console.log("After addition - Bill count:", existingBills.length);
             }
 
             existingReport.billCopies = existingBills;
@@ -694,28 +841,34 @@ export const updateReport = async (req, res) => {
         } else if (oldReportType === "Others") {
             let existingFilesArr = existingReport.files || [];
 
-            console.log(
-                "Before removal - File count:",
-                existingFilesArr.length
-            );
+            console.log("Before removal - File count:", existingFilesArr.length);
 
+            /* =========================
+               DELETE REMOVED FILES FROM CLOUDINARY
+            ========================== */
             if (removedFileIndices.length > 0) {
+                const filesToDelete = removedFileIndices.map(idx => existingFilesArr[idx]);
+                
+                for (const file of filesToDelete) {
+                    if (file?.publicId) {
+                        try {
+                            await deleteFromCloudinary(file.publicId, "raw");
+                        } catch (err) {
+                            console.error(`Failed to delete file ${file.publicId}:`, err);
+                        }
+                    }
+                }
+
                 existingFilesArr = existingFilesArr.filter(
                     (_, idx) => !removedFileIndices.includes(idx)
                 );
-                console.log(
-                    "After removal - File count:",
-                    existingFilesArr.length
-                );
+                console.log("After removal - File count:", existingFilesArr.length);
             }
 
             if (newFiles.files) {
                 console.log("Adding new files:", newFiles.files.length);
                 existingFilesArr = [...existingFilesArr, ...newFiles.files];
-                console.log(
-                    "After addition - File count:",
-                    existingFilesArr.length
-                );
+                console.log("After addition - File count:", existingFilesArr.length);
             }
 
             existingReport.files = existingFilesArr;
@@ -745,11 +898,14 @@ export const updateReport = async (req, res) => {
 /* ===============================
    DELETE REPORT (ADMIN ONLY)
 =============================== */
+/* ===============================
+   DELETE REPORT (ADMIN ONLY) - WITH CLOUDINARY CLEANUP
+=============================== */
 export const deleteReport = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const report = await Report.findByIdAndDelete(id);
+        const report = await Report.findById(id);
 
         if (!report) {
             return res.status(404).json({
@@ -758,9 +914,50 @@ export const deleteReport = async (req, res) => {
             });
         }
 
+        /* =========================
+           DELETE FILES FROM CLOUDINARY
+        ========================== */
+        // Delete shop display images
+        if (report.shopDisplayImages && report.shopDisplayImages.length > 0) {
+            for (const img of report.shopDisplayImages) {
+                try {
+                    await deleteFromCloudinary(img.publicId, "image");
+                } catch (err) {
+                    console.error(`Failed to delete image ${img.publicId}:`, err);
+                }
+            }
+        }
+
+        // Delete bill copies
+        if (report.billCopies && report.billCopies.length > 0) {
+            for (const bill of report.billCopies) {
+                try {
+                    await deleteFromCloudinary(bill.publicId, "raw");
+                } catch (err) {
+                    console.error(`Failed to delete bill ${bill.publicId}:`, err);
+                }
+            }
+        }
+
+        // Delete other files
+        if (report.files && report.files.length > 0) {
+            for (const file of report.files) {
+                try {
+                    await deleteFromCloudinary(file.publicId, "raw");
+                } catch (err) {
+                    console.error(`Failed to delete file ${file.publicId}:`, err);
+                }
+            }
+        }
+
+        /* =========================
+           DELETE REPORT FROM DATABASE
+        ========================== */
+        await Report.findByIdAndDelete(id);
+
         return res.status(200).json({
             success: true,
-            message: "Report deleted successfully",
+            message: "Report and associated files deleted successfully",
         });
     } catch (error) {
         console.error("Delete report error:", error);
@@ -771,6 +968,7 @@ export const deleteReport = async (req, res) => {
         });
     }
 };
+
 
 /* ===============================
    GET REPORTS BY CAMPAIGN

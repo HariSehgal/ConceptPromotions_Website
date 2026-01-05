@@ -85,7 +85,13 @@ router.get(
     downloadEmployeeRetailerMappingReport
 );
 
-router.put("/campaigns/:id", protect, updateCampaign);
+router.put(
+  "/campaigns/:id",
+  protect,
+  upload.fields([{ name: "banners", maxCount: 5 }]),
+  updateCampaign
+);
+
 router.get("/campaigns/:id", protect, getCampaignById);
 router.post("/login", loginAdmin);
 router.post("/add-admin", addAdmin);
@@ -166,7 +172,13 @@ router.get(
     getCampaignRetailersWithEmployees
 );
 
-router.post("/campaigns", protect, addCampaign);
+router.post(
+  "/campaigns",
+  protect,
+  upload.fields([{ name: "banners", maxCount: 5 }]),
+  addCampaign
+);
+
 router.get("/campaigns", protect, getAllCampaigns);
 router.delete("/campaigns/:id", protect, deleteCampaign);
 router.post("/campaigns/assign", protect, assignCampaign);

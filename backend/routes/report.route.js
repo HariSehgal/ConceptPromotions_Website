@@ -1,5 +1,6 @@
 // routes/report.routes.js
 import express from "express";
+import multer from "multer";
 import {
     createReport,
     deleteReport,
@@ -12,9 +13,41 @@ import {
     updateReport,
 } from "../controllers/report.controller.js";
 import { protect } from "../middleware/authMiddleware.js";
-import { upload } from "../utils/upload.js";
 
 const router = express.Router();
+
+/* ===============================
+   MULTER CONFIGURATION FOR CLOUDINARY
+=============================== */
+const storage = multer.memoryStorage(); // ✅ Stores files in memory as Buffer
+
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB per file
+        files: 20, // Max 20 files total
+    },
+    fileFilter: (req, file, cb) => {
+        // Accept images and documents
+        const allowedTypes = [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ];
+
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only images and documents are allowed.'));
+        }
+    }
+});
 
 /* ===============================
    PUBLIC/AUTHENTICATED ROUTES

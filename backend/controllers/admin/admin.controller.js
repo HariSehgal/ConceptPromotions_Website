@@ -2,7 +2,7 @@
 import bcrypt from "bcryptjs";
 import { Admin, ClientAdmin, ClientUser } from "../../models/user.js";
 import { Retailer } from "../../models/retailer.model.js";
-
+import { uploadToCloudinary } from "../../utils/cloudinary.config.js";
 // ====== ADD NEW ADMIN ======
 export const addAdmin = async (req, res) => {
     try {
