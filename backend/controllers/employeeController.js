@@ -1,5 +1,8 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import XLSX from "xlsx";
+import { Retailer } from "../models/retailer.model.js";
 import {
     Campaign,
     Employee,
@@ -7,31 +10,17 @@ import {
     VisitSchedule,
 } from "../models/user.js";
 // import { Retailer } from "../models/user.js";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import XLSX from "xlsx";
-import { Retailer } from "../models/retailer.model.js";
-import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.config.js";
+import {
+    deleteFromCloudinary,
+    uploadToCloudinary,
+} from "../utils/cloudinary.config.js";
 //   GET LOGGED-IN EMPLOYEE PROFILE
 export const getEmployeeProfile = async (req, res) => {
     try {
-        const employeeId = req.user.id; // Extract employee ID from JWT
+        const employeeId = req.user.id;
 
         const employee = await Employee.findById(employeeId)
-            .select(
-                `
-        -password
-        -files.aadhaarFront.data
-        -files.aadhaarBack.data
-        -files.panCard.data
-        -files.personPhoto.data
-        -files.familyPhoto.data
-        -files.bankProof.data
-        -files.esiForm.data
-        -files.pfForm.data
-        -files.employmentForm.data
-        -files.cv.data
-        `
-            )
+            .select("-password")
             .lean();
 
         if (!employee) {
@@ -51,10 +40,10 @@ export const getEmployeeProfile = async (req, res) => {
     }
 };
 
-// CHECK WHICH EMPLOYEE DOCUMENTS EXIST
+// CHECK WHICH EMPLOYEE DOCUMENTS EXIST - UPDATED FOR CLOUDINARY
 export const getEmployeeDocumentStatus = async (req, res) => {
     try {
-        const employeeId = req.user.id; // From JWT via protect middleware
+        const employeeId = req.user.id;
 
         const employee = await Employee.findById(employeeId).select("files");
 
@@ -63,16 +52,16 @@ export const getEmployeeDocumentStatus = async (req, res) => {
         }
 
         res.status(200).json({
-            hasPersonPhoto: !!employee.files?.personPhoto?.data,
-            hasAadhaarFront: !!employee.files?.aadhaarFront?.data,
-            hasAadhaarBack: !!employee.files?.aadhaarBack?.data,
-            hasPanCard: !!employee.files?.panCard?.data,
-            hasFamilyPhoto: !!employee.files?.familyPhoto?.data,
-            hasBankProof: !!employee.files?.bankProof?.data,
-            hasEsiForm: !!employee.files?.esiForm?.data,
-            hasPfForm: !!employee.files?.pfForm?.data,
-            hasEmploymentForm: !!employee.files?.employmentForm?.data,
-            hasCv: !!employee.files?.cv?.data,
+            hasPersonPhoto: !!employee.files?.personPhoto?.url,
+            hasAadhaarFront: !!employee.files?.aadhaarFront?.url,
+            hasAadhaarBack: !!employee.files?.aadhaarBack?.url,
+            hasPanCard: !!employee.files?.panCard?.url,
+            hasFamilyPhoto: !!employee.files?.familyPhoto?.url,
+            hasBankProof: !!employee.files?.bankProof?.url,
+            hasEsiForm: !!employee.files?.esiForm?.url,
+            hasPfForm: !!employee.files?.pfForm?.url,
+            hasEmploymentForm: !!employee.files?.employmentForm?.url,
+            hasCv: !!employee.files?.cv?.url,
         });
     } catch (error) {
         console.error("❌ Get employee document status error:", error);
@@ -83,13 +72,12 @@ export const getEmployeeDocumentStatus = async (req, res) => {
     }
 };
 
-// GET EMPLOYEE DOCUMENT/IMAGE (ALIGNED WITH SCHEMA)
+// GET EMPLOYEE DOCUMENT/IMAGE - UPDATED FOR CLOUDINARY
 export const getEmployeeDocument = async (req, res) => {
     try {
         const employeeId = req.user.id;
         const { documentType } = req.params;
 
-        // ✅ Validate documentType
         const validDocumentTypes = [
             "personPhoto",
             "aadhaarFront",
@@ -113,18 +101,17 @@ export const getEmployeeDocument = async (req, res) => {
             return res.status(404).json({ message: "Employee not found" });
         }
 
-        // ✅ All documents are now inside employee.files (including personPhoto)
         const document = employee.files?.[documentType];
 
-        if (!document || !document.data) {
+        if (!document || !document.url) {
             return res.status(404).json({ message: "Document not found" });
         }
 
-        res.set(
-            "Content-Type",
-            document.contentType || "application/octet-stream"
-        );
-        res.send(document.data);
+        // Return Cloudinary URL instead of buffer
+        res.status(200).json({
+            url: document.url,
+            publicId: document.publicId,
+        });
     } catch (error) {
         console.error("❌ Get employee document error:", error);
         return res.status(500).json({
@@ -137,7 +124,7 @@ export const getEmployeeDocument = async (req, res) => {
 //  GET EMPLOYEE SINGLE CAMPAIGN STATUS
 export const getEmployeeCampaignStatus = async (req, res) => {
     try {
-        const employeeId = req.user.id; // Get from JWT middleware
+        const employeeId = req.user.id;
         const { campaignId } = req.params;
 
         const campaign = await Campaign.findById(campaignId)
@@ -148,7 +135,6 @@ export const getEmployeeCampaignStatus = async (req, res) => {
             return res.status(404).json({ message: "Campaign not found" });
         }
 
-        // Find the employee entry in assignedEmployees
         const employeeEntry = campaign.assignedEmployees.find(
             (e) => e.employeeId?.toString() === employeeId.toString()
         );
@@ -159,7 +145,6 @@ export const getEmployeeCampaignStatus = async (req, res) => {
             });
         }
 
-        // Return campaign with employee-specific status
         res.status(200).json({
             campaignId: campaign._id,
             name: campaign.name,
@@ -186,10 +171,10 @@ export const getEmployeeCampaignStatus = async (req, res) => {
     }
 };
 
-// UPDATE EMPLOYEE PROFILE (ALIGNED WITH SCHEMA)
+// UPDATE EMPLOYEE PROFILE - UPDATED FOR CLOUDINARY
 export const updateEmployeeProfile = async (req, res) => {
     try {
-        const { id } = req.user; // From JWT
+        const { id } = req.user;
         const employee = await Employee.findById(id);
         if (!employee)
             return res.status(404).json({ message: "Employee not found" });
@@ -311,11 +296,10 @@ export const updateEmployeeProfile = async (req, res) => {
         });
 
         /* --------------------------------------------------
-       🔥 Step 5: Handle File Uploads (ALL inside employee.files)
+       🔥 Step 5: Handle File Uploads - UPDATED FOR CLOUDINARY
     -------------------------------------------------- */
         const files = req.files || {};
 
-        // ✅ Initialize files object if it doesn't exist
         if (!employee.files) employee.files = {};
 
         // ✅ Handle T&C
@@ -328,28 +312,43 @@ export const updateEmployeeProfile = async (req, res) => {
             employee.pennyCheck = true;
         }
 
-        // ✅ All file fields are now inside employee.files (including personPhoto)
+        // ✅ All file fields - CLOUDINARY UPLOAD
         const fileFields = [
-            "aadhaarFront",
-            "aadhaarBack",
-            "panCard",
-            "personPhoto", // ✅ Now inside files
-            "familyPhoto",
-            "bankProof",
-            "esiForm",
-            "pfForm",
-            "employmentForm",
-            "cv",
+            { key: "aadhaarFront", folder: "employees/aadhaar" },
+            { key: "aadhaarBack", folder: "employees/aadhaar" },
+            { key: "panCard", folder: "employees/pan_card" },
+            { key: "personPhoto", folder: "employees/person_photos" },
+            { key: "familyPhoto", folder: "employees/family_photos" },
+            { key: "bankProof", folder: "employees/bank_proof" },
+            { key: "esiForm", folder: "employees/forms" },
+            { key: "pfForm", folder: "employees/forms" },
+            { key: "employmentForm", folder: "employees/forms" },
+            { key: "cv", folder: "employees/cv" },
         ];
 
-        fileFields.forEach((field) => {
-            if (files[field]) {
-                employee.files[field] = {
-                    data: files[field][0].buffer,
-                    contentType: files[field][0].mimetype,
+        for (const { key, folder } of fileFields) {
+            if (files[key]) {
+                // Delete old file from Cloudinary if exists
+                if (employee.files[key]?.publicId) {
+                    await deleteFromCloudinary(
+                        employee.files[key].publicId,
+                        getResourceType(files[key][0].mimetype)
+                    );
+                }
+
+                // Upload new file to Cloudinary
+                const result = await uploadToCloudinary(
+                    files[key][0].buffer,
+                    folder,
+                    getResourceType(files[key][0].mimetype)
+                );
+
+                employee.files[key] = {
+                    url: result.secure_url,
+                    publicId: result.public_id,
                 };
             }
-        });
+        }
 
         /* --------------------------------------------------
        🔥 Step 6: Password Change
@@ -380,7 +379,7 @@ export const updateEmployeeProfile = async (req, res) => {
                     ? {
                           bankName: employee.bankDetails.bankName,
                           accountNumber: employee.bankDetails.accountNumber,
-                          ifsc: employee.bankDetails.ifsc, // ✅ Lowercase for consistency
+                          ifsc: employee.bankDetails.ifsc,
                           branchName: employee.bankDetails.branchName,
                       }
                     : null,
@@ -418,7 +417,6 @@ export const loginEmployee = async (req, res) => {
             return res.status(404).json({ message: "Employee not found" });
         }
 
-        // Compare password
         const isMatch = await bcrypt.compare(password, employee.password);
         if (!isMatch) {
             return res.status(401).json({ message: "Invalid credentials" });
@@ -450,7 +448,7 @@ export const loginEmployee = async (req, res) => {
 //GET EMPLOYEE CAMPAIGNS
 export const getEmployeeCampaigns = async (req, res) => {
     try {
-        const employeeId = req.user.id; // Get from JWT token
+        const employeeId = req.user.id;
         const employee = await Employee.findById(employeeId);
 
         if (!employee) {
@@ -465,16 +463,13 @@ export const getEmployeeCampaigns = async (req, res) => {
             .populate("assignedRetailers.retailerId", "name contactNo")
             .sort({ createdAt: -1 });
 
-        // Add employeeStatus to each campaign for easier frontend access
         const campaignsWithStatus = campaigns.map((campaign) => {
             const campaignObj = campaign.toObject();
 
-            // Find current employee's status from assignedEmployees array
             const employeeEntry = campaignObj.assignedEmployees.find(
                 (emp) => emp.employeeId._id.toString() === employeeId.toString()
             );
 
-            // Add a top-level employeeStatus field for this specific employee
             campaignObj.employeeStatus = {
                 status: employeeEntry?.status || "pending",
                 startDate:
@@ -625,6 +620,7 @@ export const clientSetPaymentPlan = async (req, res) => {
     }
 };
 
+// SUBMIT EMPLOYEE REPORT - UPDATED FOR CLOUDINARY
 export const submitEmployeeReport = async (req, res) => {
     try {
         const employeeId = req.user.id;
@@ -658,7 +654,6 @@ export const submitEmployeeReport = async (req, res) => {
                 .json({ message: "campaignId and retailerId are required" });
         }
 
-        // ⭐ REQUIRED VALIDATION (Only this is added)
         if (visitType === "scheduled" && !visitScheduleId) {
             return res.status(400).json({
                 message: "visitScheduleId is required for scheduled visits",
@@ -666,7 +661,6 @@ export const submitEmployeeReport = async (req, res) => {
         }
 
         //  🔥 1. AUTO-FIND VISIT SCHEDULE IF NOT PROVIDED
-
         let schedule = null;
 
         if (visitScheduleId) {
@@ -688,7 +682,6 @@ export const submitEmployeeReport = async (req, res) => {
         }
 
         // 🔥 2. UPDATE SCHEDULE STATUS
-
         let updatedStatus = "No Schedule Found";
 
         if (schedule) {
@@ -711,7 +704,6 @@ export const submitEmployeeReport = async (req, res) => {
         }
 
         //🔥 3. CREATE REPORT DOCUMENT
-
         const report = new EmployeeReport({
             employeeId,
             campaignId,
@@ -737,37 +729,52 @@ export const submitEmployeeReport = async (req, res) => {
                 longitude: Number(longitude) || null,
             },
 
-            // set role for now (if employee always submitting)
             submittedByRole: "Employee",
             submittedByEmployee: employeeId,
         });
 
-        //🔥 4. HANDLE IMAGES + MULTIPLE BILL COPIES
-
+        //🔥 4. HANDLE IMAGES + MULTIPLE BILL COPIES - CLOUDINARY
         const files = req.files || {};
 
         // MULTIPLE IMAGES
         if (files.images) {
-            report.images = files.images.map((file) => ({
-                data: file.buffer,
-                contentType: file.mimetype,
-                fileName: file.originalname,
-            }));
+            const uploadedImages = [];
+            for (const file of files.images) {
+                const result = await uploadToCloudinary(
+                    file.buffer,
+                    "reports/employee_images",
+                    getResourceType(file.mimetype)
+                );
+                uploadedImages.push({
+                    url: result.secure_url,
+                    publicId: result.public_id,
+                    fileName: file.originalname,
+                });
+            }
+            report.images = uploadedImages;
         }
 
         // MULTIPLE BILL COPIES
         if (files.billCopy) {
-            report.billCopies = files.billCopy.map((file) => ({
-                data: file.buffer,
-                contentType: file.mimetype,
-                fileName: file.originalname,
-            }));
+            const uploadedBills = [];
+            for (const file of files.billCopy) {
+                const result = await uploadToCloudinary(
+                    file.buffer,
+                    "reports/stock_bills",
+                    getResourceType(file.mimetype)
+                );
+                uploadedBills.push({
+                    url: result.secure_url,
+                    publicId: result.public_id,
+                    fileName: file.originalname,
+                });
+            }
+            report.billCopies = uploadedBills;
         }
 
         await report.save();
 
         // 🔥 5. RESPONSE
-
         res.status(201).json({
             message: "Report submitted successfully",
             visitScheduleStatusUpdated: updatedStatus,
@@ -783,6 +790,7 @@ export const submitEmployeeReport = async (req, res) => {
     }
 };
 
+// GET EMPLOYEE REPORTS - UPDATED FOR CLOUDINARY
 export const getEmployeeReports = async (req, res) => {
     try {
         const employeeId = req.user.id;
@@ -795,20 +803,20 @@ export const getEmployeeReports = async (req, res) => {
         const formattedReports = reports.map((report) => ({
             ...report._doc,
 
-            // Convert images array
+            // Images are now URLs - no base64 conversion needed
             images:
                 report.images?.map((img) => ({
+                    url: img.url,
+                    publicId: img.publicId,
                     fileName: img.fileName,
-                    contentType: img.contentType,
-                    base64: img.data.toString("base64"),
                 })) || [],
 
-            // Convert MULTIPLE bill copies
+            // Bill copies are now URLs
             billCopies:
                 report.billCopies?.map((bill) => ({
+                    url: bill.url,
+                    publicId: bill.publicId,
                     fileName: bill.fileName,
-                    contentType: bill.contentType,
-                    base64: bill.data.toString("base64"),
                 })) || [],
         }));
 
@@ -822,6 +830,7 @@ export const getEmployeeReports = async (req, res) => {
     }
 };
 
+// DOWNLOAD EMPLOYEE REPORT (PDF generation remains same - just fetches URLs now)
 export const downloadEmployeeReport = async (req, res) => {
     try {
         const employeeId = req.user.id;
@@ -831,7 +840,6 @@ export const downloadEmployeeReport = async (req, res) => {
             return res.status(400).json({ message: "reportId is required" });
         }
 
-        // Fetch EXACT report of logged-in employee
         const report = await EmployeeReport.findOne({
             _id: reportId,
             employeeId,
@@ -844,9 +852,7 @@ export const downloadEmployeeReport = async (req, res) => {
             return res.status(404).json({ message: "Report not found" });
         }
 
-        // ---------------------------
         // CREATE PDF DOCUMENT
-        // ---------------------------
         const pdfDoc = await PDFDocument.create();
         const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
@@ -869,32 +875,24 @@ export const downloadEmployeeReport = async (req, res) => {
             y -= size + 6;
         };
 
-        // ---------------------------
         // HEADER
-        // ---------------------------
         write("Employee Visit Report", 22);
         y -= 10;
 
-        // ---------------------------
         // EMPLOYEE DETAILS
-        // ---------------------------
         write("Employee Details", 16);
         write(`Name: ${report.employeeId?.name || "N/A"}`);
         write(`Email: ${report.employeeId?.email || "N/A"}`);
         write(`Phone: ${report.employeeId?.phone || "N/A"}`);
         y -= 10;
 
-        // ---------------------------
         // CAMPAIGN DETAILS
-        // ---------------------------
         write("Campaign Details", 16);
         write(`Campaign Name: ${report.campaignId?.name || "N/A"}`);
         write(`Campaign Type: ${report.campaignId?.type || "N/A"}`);
         y -= 10;
 
-        // ---------------------------
         // RETAILER DETAILS
-        // ---------------------------
         write("Retailer Details", 16);
         write(`Retailer Name: ${report.retailerId?.name || "N/A"}`);
         write(`Contact: ${report.retailerId?.contactNo || "N/A"}`);
@@ -910,9 +908,7 @@ export const downloadEmployeeReport = async (req, res) => {
         write(`Address: ${addressText}`);
         y -= 10;
 
-        // ---------------------------
         // REPORT DETAILS
-        // ---------------------------
         write("Report Details", 16);
         write(`Visit Type: ${report.visitType || "N/A"}`);
         write(`Attended: ${report.attended ? "Yes" : "No"}`);
@@ -930,83 +926,30 @@ export const downloadEmployeeReport = async (req, res) => {
         write(`Date Range: ${from} to ${to}`);
         y -= 10;
 
-        // ---------------------------
         // LOCATION
-        // ---------------------------
         write("Location", 16);
         write(`Latitude: ${report.location?.latitude || "N/A"}`);
         write(`Longitude: ${report.location?.longitude || "N/A"}`);
         y -= 10;
 
-        // ========================================================
-        // ATTACHED IMAGES
-        // ========================================================
+        // Note: Images are now accessible via URLs in report.images
+        // If you want to embed images in PDF, you'd need to fetch them from Cloudinary URLs
         if (report.images?.length) {
-            for (let img of report.images) {
-                if (!img?.data) continue;
-
-                const imgPage = pdfDoc.addPage();
-                let embeddedImage;
-
-                try {
-                    if (img.contentType === "image/png") {
-                        embeddedImage = await pdfDoc.embedPng(img.data);
-                    } else if (
-                        img.contentType === "image/jpeg" ||
-                        img.contentType === "image/jpg"
-                    ) {
-                        embeddedImage = await pdfDoc.embedJpg(img.data);
-                    } else {
-                        console.log("Unsupported image type:", img.contentType);
-                        continue;
-                    }
-                } catch (e) {
-                    console.log("Image embed failed:", e.message);
-                    continue;
-                }
-
-                const dims = embeddedImage.scale(0.5);
-
-                imgPage.drawImage(embeddedImage, {
-                    x: 50,
-                    y: 150,
-                    width: dims.width,
-                    height: dims.height,
-                });
-            }
+            write("Images", 16);
+            report.images.forEach((img, idx) => {
+                write(`Image ${idx + 1}: ${img.url}`);
+            });
+            y -= 10;
         }
 
-        // ========================================================
-        // BILL COPY
-        // ========================================================
-        if (report.billCopy?.data) {
-            const billPage = pdfDoc.addPage();
-            let embeddedBill;
-
-            try {
-                if (report.billCopy.contentType === "image/png") {
-                    embeddedBill = await pdfDoc.embedPng(report.billCopy.data);
-                } else {
-                    embeddedBill = await pdfDoc.embedJpg(report.billCopy.data);
-                }
-            } catch (e) {
-                console.log("Bill copy embed failed:", e.message);
-            }
-
-            if (embeddedBill) {
-                const dims = embeddedBill.scale(0.5);
-                billPage.drawImage(embeddedBill, {
-                    x: 50,
-                    y: 150,
-                    width: dims.width,
-                    height: dims.height,
-                });
-            }
+        if (report.billCopies?.length) {
+            write("Bill Copies", 16);
+            report.billCopies.forEach((bill, idx) => {
+                write(`Bill ${idx + 1}: ${bill.url}`);
+            });
         }
 
-        // ---------------------------
         // SEND PDF
-        // ---------------------------
         const pdfBytes = await pdfDoc.save();
 
         res.setHeader("Content-Type", "application/pdf");
@@ -1024,11 +967,11 @@ export const downloadEmployeeReport = async (req, res) => {
         });
     }
 };
+
 export const downloadEmployeeReportsExcel = async (req, res) => {
     try {
         const employeeId = req.user.id;
 
-        // Fetch all reports for employee
         const reports = await EmployeeReport.find({ employeeId })
             .populate("campaignId", "name type")
             .populate("retailerId", "name contactNo shopDetails")
@@ -1040,7 +983,6 @@ export const downloadEmployeeReportsExcel = async (req, res) => {
                 .json({ message: "No reports found for this employee" });
         }
 
-        // Convert reports to Excel rows
         const data = reports.map((report) => ({
             ReportID: report._id.toString(),
             CampaignName: report.campaignId?.name || "N/A",
@@ -1084,18 +1026,15 @@ export const downloadEmployeeReportsExcel = async (req, res) => {
             CreatedAt: new Date(report.createdAt).toLocaleString(),
         }));
 
-        // Convert JSON → Sheet → Workbook
         const worksheet = XLSX.utils.json_to_sheet(data);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Reports");
 
-        // Generate Excel buffer
         const excelBuffer = XLSX.write(workbook, {
             type: "buffer",
             bookType: "xlsx",
         });
 
-        // Required headers for file download
         res.setHeader(
             "Content-Type",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -1106,7 +1045,6 @@ export const downloadEmployeeReportsExcel = async (req, res) => {
         );
         res.setHeader("Content-Length", excelBuffer.length);
 
-        // MUST use res.end() for Hoppscotch/Postman downloads
         return res.end(excelBuffer);
     } catch (error) {
         console.error("Excel Download Error:", error);
@@ -1116,11 +1054,10 @@ export const downloadEmployeeReportsExcel = async (req, res) => {
         });
     }
 };
+
 export const getEmployeeVisitProgress = async (req, res) => {
     try {
         const employeeId = req.user.id;
-
-        // Optional campaign filter
         const { campaignId } = req.query;
 
         const filter = { employeeId };
@@ -1144,10 +1081,6 @@ export const getEmployeeVisitProgress = async (req, res) => {
             });
         }
 
-        /* ===========================
-       🔥 Calculate progress
-    =========================== */
-
         const total = visits.length;
         const completed = visits.filter((v) => v.status === "Completed").length;
         const missed = visits.filter((v) => v.status === "Missed").length;
@@ -1156,10 +1089,6 @@ export const getEmployeeVisitProgress = async (req, res) => {
 
         const progressPercent =
             total > 0 ? Math.round((completed / total) * 100) : 0;
-
-        /* ===========================
-       🔥 Send response
-    =========================== */
 
         res.status(200).json({
             message: "Visit progress fetched successfully",
@@ -1185,9 +1114,8 @@ export const getEmployeeVisitProgress = async (req, res) => {
 export const getAssignedRetailersForEmployee = async (req, res) => {
     try {
         const employeeId = req.user.id;
-        const { campaignId } = req.query; // optional filter
+        const { campaignId } = req.query;
 
-        // Build query
         const query = {
             "assignedEmployeeRetailers.employeeId": employeeId,
         };
@@ -1196,7 +1124,6 @@ export const getAssignedRetailersForEmployee = async (req, res) => {
             query._id = campaignId;
         }
 
-        // Fetch campaigns and populate retailers
         const campaigns = await Campaign.find(query)
             .populate(
                 "assignedEmployeeRetailers.retailerId",
@@ -1212,7 +1139,6 @@ export const getAssignedRetailersForEmployee = async (req, res) => {
             });
         }
 
-        // Format response
         const result = campaigns.map((camp) => {
             const retailers = camp.assignedEmployeeRetailers
                 .filter((r) => r.employeeId.toString() === employeeId)
@@ -1245,7 +1171,7 @@ export const getAssignedRetailersForEmployee = async (req, res) => {
         });
     }
 };
-// GET VISIT SCHEDULES FOR EMPLOYEE (Corrected Position)
+
 export const getAllVisitSchedulesForEmployee = async (req, res) => {
     try {
         const employeeId = req.user.id;
@@ -1269,7 +1195,6 @@ export const getAllVisitSchedulesForEmployee = async (req, res) => {
     }
 };
 
-// GET LAST VISIT DETAILS
 export const getLastVisitDetails = async (req, res) => {
     try {
         const employeeId = req.user.id;
@@ -1281,7 +1206,6 @@ export const getLastVisitDetails = async (req, res) => {
             });
         }
 
-        // Find most recent completed visit
         const lastVisit = await VisitSchedule.findOne({
             employeeId,
             retailerId,
@@ -1292,7 +1216,6 @@ export const getLastVisitDetails = async (req, res) => {
             .populate("retailerId", "name contactNo shopDetails")
             .lean();
 
-        // Next upcoming schedule
         const upcomingVisit = await VisitSchedule.findOne({
             employeeId,
             retailerId,
@@ -1303,7 +1226,6 @@ export const getLastVisitDetails = async (req, res) => {
             .sort({ visitDate: 1 })
             .lean();
 
-        // Last report
         const lastReport = await EmployeeReport.findOne({
             employeeId,
             retailerId,
@@ -1338,6 +1260,7 @@ export const getLastVisitDetails = async (req, res) => {
         });
     }
 };
+
 export const getScheduleReportMapping = async (req, res) => {
     try {
         const employeeId = req.user.id;
@@ -1349,7 +1272,6 @@ export const getScheduleReportMapping = async (req, res) => {
             });
         }
 
-        // 1️⃣ Get all schedules for this employee & campaign
         const schedules = await VisitSchedule.find({
             employeeId,
             campaignId,
@@ -1357,7 +1279,6 @@ export const getScheduleReportMapping = async (req, res) => {
             .populate("retailerId", "name shopDetails")
             .lean();
 
-        // 2️⃣ Get all reports for this employee & campaign
         const reports = await EmployeeReport.find({
             employeeId,
             campaignId,
@@ -1365,20 +1286,18 @@ export const getScheduleReportMapping = async (req, res) => {
             .populate("retailerId", "name")
             .lean();
 
-        // 3️⃣ Map reports by retailer (NOT by scheduleId!)
         const reportMap = {};
         reports.forEach((rep) => {
             const rid = rep.retailerId?._id?.toString();
-            if (rid) reportMap[rid] = rep; // latest report per retailer
+            if (rid) reportMap[rid] = rep;
         });
 
-        // 4️⃣ Build final mapping
         const mapping = schedules.map((schedule) => {
             const rid = schedule.retailerId?._id?.toString();
 
             return {
                 schedule,
-                report: reportMap[rid] || null, // match by retailer now
+                report: reportMap[rid] || null,
             };
         });
 

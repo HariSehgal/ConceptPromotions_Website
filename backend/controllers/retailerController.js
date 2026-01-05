@@ -3,6 +3,11 @@ import jwt from "jsonwebtoken";
 import twilio from "twilio";
 import { Retailer } from "../models/retailer.model.js";
 import { Campaign } from "../models/user.js";
+import {
+    deleteFromCloudinary,
+    uploadToCloudinary,
+} from "../utils/cloudinary.config.js";
+import { getResourceType } from "../utils/cloudinary.helper.js";
 
 dotenv.config();
 
@@ -78,7 +83,7 @@ export const verifyOtp = async (req, res) => {
 };
 
 /* ===============================
-   REGISTER RETAILER
+   REGISTER RETAILER - UPDATED FOR CLOUDINARY
 =============================== */
 export const registerRetailer = async (req, res) => {
     try {
@@ -125,6 +130,22 @@ export const registerRetailer = async (req, res) => {
             },
         };
 
+        // ========================================
+        // CLOUDINARY UPLOAD - Outlet Photo
+        // ========================================
+        let outletPhotoData;
+        if (files.outletPhoto) {
+            const result = await uploadToCloudinary(
+                files.outletPhoto[0].buffer,
+                "retailers/outlet_photos",
+                getResourceType(files.outletPhoto[0].mimetype)
+            );
+            outletPhotoData = {
+                url: result.secure_url,
+                publicId: result.public_id,
+            };
+        }
+
         const shopDetails = {
             shopName: body["shopDetails.shopName"] || body.shopName,
             businessType: body["shopDetails.businessType"] || body.businessType,
@@ -136,12 +157,7 @@ export const registerRetailer = async (req, res) => {
             GSTNo: body["shopDetails.GSTNo"] || body.GSTNo,
             PANCard: body["shopDetails.PANCard"] || body.PANCard,
             shopAddress,
-            outletPhoto: files.outletPhoto
-                ? {
-                      data: files.outletPhoto[0].buffer,
-                      contentType: files.outletPhoto[0].mimetype,
-                  }
-                : undefined,
+            outletPhoto: outletPhotoData,
         };
 
         const bankDetails = {
@@ -160,6 +176,47 @@ export const registerRetailer = async (req, res) => {
                 .status(400)
                 .json({ message: "Phone or email already registered" });
 
+        // ========================================
+        // CLOUDINARY UPLOAD - All Photos
+        // ========================================
+        let govtIdPhotoData, personPhotoData, registrationFormFileData;
+
+        if (files.govtIdPhoto) {
+            const result = await uploadToCloudinary(
+                files.govtIdPhoto[0].buffer,
+                "retailers/govt_id",
+                getResourceType(files.govtIdPhoto[0].mimetype)
+            );
+            govtIdPhotoData = {
+                url: result.secure_url,
+                publicId: result.public_id,
+            };
+        }
+
+        if (files.personPhoto) {
+            const result = await uploadToCloudinary(
+                files.personPhoto[0].buffer,
+                "retailers/person_photos",
+                getResourceType(files.personPhoto[0].mimetype)
+            );
+            personPhotoData = {
+                url: result.secure_url,
+                publicId: result.public_id,
+            };
+        }
+
+        if (files.registrationFormFile) {
+            const result = await uploadToCloudinary(
+                files.registrationFormFile[0].buffer,
+                "retailers/registration_forms",
+                getResourceType(files.registrationFormFile[0].mimetype)
+            );
+            registrationFormFileData = {
+                url: result.secure_url,
+                publicId: result.public_id,
+            };
+        }
+
         const retailer = new Retailer({
             name: body.name,
             contactNo,
@@ -168,24 +225,9 @@ export const registerRetailer = async (req, res) => {
             gender: body.gender,
             govtIdType: body.govtIdType,
             govtIdNumber: body.govtIdNumber,
-            govtIdPhoto: files.govtIdPhoto
-                ? {
-                      data: files.govtIdPhoto[0].buffer,
-                      contentType: files.govtIdPhoto[0].mimetype,
-                  }
-                : undefined,
-            personPhoto: files.personPhoto
-                ? {
-                      data: files.personPhoto[0].buffer,
-                      contentType: files.personPhoto[0].mimetype,
-                  }
-                : undefined,
-            registrationFormFile: files.registrationFormFile
-                ? {
-                      data: files.registrationFormFile[0].buffer,
-                      contentType: files.registrationFormFile[0].mimetype,
-                  }
-                : undefined,
+            govtIdPhoto: govtIdPhotoData,
+            personPhoto: personPhotoData,
+            registrationFormFile: registrationFormFileData,
             personalAddress,
             shopDetails,
             bankDetails,
@@ -265,9 +307,8 @@ export const loginRetailer = async (req, res) => {
     }
 };
 
-
 /* ===============================
-   GET RETAILER PROFILE
+   GET RETAILER PROFILE - UPDATED FOR CLOUDINARY
 =============================== */
 export const getRetailerProfile = async (req, res) => {
     try {
@@ -281,7 +322,7 @@ export const getRetailerProfile = async (req, res) => {
         const retailerId = decoded.id;
 
         const retailer = await Retailer.findById(retailerId).select(
-            "-password -govtIdPhoto -personPhoto -registrationFormFile -outletPhoto"
+            "-password"
         );
         if (!retailer)
             return res.status(404).json({ message: "Retailer not found" });
@@ -294,7 +335,9 @@ export const getRetailerProfile = async (req, res) => {
 };
 
 /* ===============================
-   GET RETAILER IMAGE BY TYPE
+   GET RETAILER IMAGE BY TYPE - NO LONGER NEEDED
+   (Images are now accessible via Cloudinary URLs)
+   KEEPING FOR BACKWARD COMPATIBILITY
 =============================== */
 export const getRetailerImage = async (req, res) => {
     try {
@@ -309,7 +352,6 @@ export const getRetailerImage = async (req, res) => {
         const retailerId = decoded.id;
         const { imageType } = req.params;
 
-        // Validate imageType
         const validImageTypes = [
             "govtIdPhoto",
             "personPhoto",
@@ -326,15 +368,15 @@ export const getRetailerImage = async (req, res) => {
         }
 
         const imageField = retailer[imageType];
-        if (!imageField || !imageField.data) {
+        if (!imageField || !imageField.url) {
             return res.status(404).json({ message: "Image not found" });
         }
 
-        res.set(
-            "Content-Type",
-            imageField.contentType || "application/octet-stream"
-        );
-        res.send(imageField.data);
+        // Return Cloudinary URL instead of buffer
+        res.status(200).json({
+            url: imageField.url,
+            publicId: imageField.publicId,
+        });
     } catch (error) {
         console.error("Get retailer image error:", error);
         res.status(500).json({ message: "Server error", error: error.message });
@@ -342,7 +384,7 @@ export const getRetailerImage = async (req, res) => {
 };
 
 /* ===============================
-   CHECK WHICH IMAGES EXIST
+   CHECK WHICH IMAGES EXIST - UPDATED FOR CLOUDINARY
 =============================== */
 export const getRetailerImageStatus = async (req, res) => {
     try {
@@ -365,10 +407,10 @@ export const getRetailerImageStatus = async (req, res) => {
         }
 
         res.status(200).json({
-            hasGovtIdPhoto: !!retailer.govtIdPhoto?.data,
-            hasPersonPhoto: !!retailer.personPhoto?.data,
-            hasRegistrationFormFile: !!retailer.registrationFormFile?.data,
-            hasOutletPhoto: !!retailer.outletPhoto?.data,
+            hasGovtIdPhoto: !!retailer.govtIdPhoto?.url,
+            hasPersonPhoto: !!retailer.personPhoto?.url,
+            hasRegistrationFormFile: !!retailer.registrationFormFile?.url,
+            hasOutletPhoto: !!retailer.outletPhoto?.url,
         });
     } catch (error) {
         console.error("Get image status error:", error);
@@ -377,7 +419,7 @@ export const getRetailerImageStatus = async (req, res) => {
 };
 
 /* ===============================
-   UPDATE RETAILER PROFILE
+   UPDATE RETAILER PROFILE - UPDATED FOR CLOUDINARY
 =============================== */
 export const updateRetailer = async (req, res) => {
     try {
@@ -441,7 +483,6 @@ export const updateRetailer = async (req, res) => {
             retailer.bankDetails = {};
         }
 
-        // Track if bank details changed
         const bankDetailsChanged =
             (body.bankName &&
                 body.bankName !== retailer.bankDetails.bankName) ||
@@ -457,13 +498,11 @@ export const updateRetailer = async (req, res) => {
         if (body.IFSC) retailer.bankDetails.IFSC = body.IFSC;
         if (body.branchName) retailer.bankDetails.branchName = body.branchName;
 
-        // If bank details changed, reset penny check
         if (bankDetailsChanged) {
             retailer.pennyCheck = false;
         }
 
         /* T&C AND PENNY CHECK */
-        // Only allow setting to true, never back to false (except bank change)
         if (body.tnc === "true" || body.tnc === true) {
             retailer.tnc = true;
         }
@@ -475,46 +514,97 @@ export const updateRetailer = async (req, res) => {
             retailer.pennyCheck = true;
         }
 
-        /* FILE UPLOADS - All at root level */
+        /* ========================================
+           FILE UPLOADS - UPDATED FOR CLOUDINARY
+           Delete old files before uploading new ones
+        ======================================== */
+
+        // govtIdPhoto
         if (files.govtIdPhoto) {
+            // Delete old image from Cloudinary if exists
+            if (retailer.govtIdPhoto?.publicId) {
+                await deleteFromCloudinary(
+                    retailer.govtIdPhoto.publicId,
+                    getResourceType(files.govtIdPhoto[0].mimetype)
+                );
+            }
+
+            const result = await uploadToCloudinary(
+                files.govtIdPhoto[0].buffer,
+                "retailers/govt_id",
+                getResourceType(files.govtIdPhoto[0].mimetype)
+            );
             retailer.govtIdPhoto = {
-                data: files.govtIdPhoto[0].buffer,
-                contentType: files.govtIdPhoto[0].mimetype,
+                url: result.secure_url,
+                publicId: result.public_id,
             };
         }
 
+        // personPhoto
         if (files.personPhoto) {
+            if (retailer.personPhoto?.publicId) {
+                await deleteFromCloudinary(
+                    retailer.personPhoto.publicId,
+                    getResourceType(files.personPhoto[0].mimetype)
+                );
+            }
+
+            const result = await uploadToCloudinary(
+                files.personPhoto[0].buffer,
+                "retailers/person_photos",
+                getResourceType(files.personPhoto[0].mimetype)
+            );
             retailer.personPhoto = {
-                data: files.personPhoto[0].buffer,
-                contentType: files.personPhoto[0].mimetype,
+                url: result.secure_url,
+                publicId: result.public_id,
             };
         }
 
+        // registrationFormFile
         if (files.registrationFormFile) {
+            if (retailer.registrationFormFile?.publicId) {
+                await deleteFromCloudinary(
+                    retailer.registrationFormFile.publicId,
+                    getResourceType(files.registrationFormFile[0].mimetype)
+                );
+            }
+
+            const result = await uploadToCloudinary(
+                files.registrationFormFile[0].buffer,
+                "retailers/registration_forms",
+                getResourceType(files.registrationFormFile[0].mimetype)
+            );
             retailer.registrationFormFile = {
-                data: files.registrationFormFile[0].buffer,
-                contentType: files.registrationFormFile[0].mimetype,
+                url: result.secure_url,
+                publicId: result.public_id,
             };
         }
 
+        // outletPhoto
         if (files.outletPhoto) {
+            if (retailer.outletPhoto?.publicId) {
+                await deleteFromCloudinary(
+                    retailer.outletPhoto.publicId,
+                    getResourceType(files.outletPhoto[0].mimetype)
+                );
+            }
+
+            const result = await uploadToCloudinary(
+                files.outletPhoto[0].buffer,
+                "retailers/outlet_photos",
+                getResourceType(files.outletPhoto[0].mimetype)
+            );
             retailer.outletPhoto = {
-                data: files.outletPhoto[0].buffer,
-                contentType: files.outletPhoto[0].mimetype,
+                url: result.secure_url,
+                publicId: result.public_id,
             };
         }
 
         await retailer.save();
 
-        // Return sanitized response without password and large buffers
+        // Return sanitized response
         const sanitizedRetailer = retailer.toObject();
         delete sanitizedRetailer.password;
-
-        // Optionally remove buffer data from response
-        delete sanitizedRetailer.govtIdPhoto;
-        delete sanitizedRetailer.personPhoto;
-        delete sanitizedRetailer.registrationFormFile;
-        delete sanitizedRetailer.outletPhoto;
 
         res.status(200).json({
             message: "Retailer updated successfully",
@@ -531,7 +621,6 @@ export const updateRetailer = async (req, res) => {
 =============================== */
 export const getRetailerCampaigns = async (req, res) => {
     try {
-        // 🔐 AUTH
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith("Bearer ")) {
             return res.status(401).json({ message: "Unauthorized" });
@@ -541,7 +630,6 @@ export const getRetailerCampaigns = async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const retailerId = decoded.id;
 
-        // 🏪 RETAILER INFO
         const retailer = await Retailer.findById(retailerId)
             .select("name uniqueId retailerCode")
             .lean();
@@ -550,7 +638,6 @@ export const getRetailerCampaigns = async (req, res) => {
             return res.status(404).json({ message: "Retailer not found" });
         }
 
-        // 🔎 FILTERS
         const { status, isActive } = req.query;
 
         const query = {
@@ -561,13 +648,12 @@ export const getRetailerCampaigns = async (req, res) => {
             query.isActive = isActive === "true";
         }
 
-        // 📦 FETCH CAMPAIGNS
         const campaigns = await Campaign.find(query)
             .populate("createdBy", "name email")
             .populate({
                 path: "assignedEmployeeRetailers.employeeId",
                 select: "name phone email",
-                options: { strictPopulate: false }, // safety guard
+                options: { strictPopulate: false },
             })
             .sort({ createdAt: -1 })
             .lean();
@@ -651,7 +737,6 @@ export const getRetailerCampaigns = async (req, res) => {
 
 /* ===============================
    GET RETAILERS BY CAMPAIGN ID
-   (For Client Portal - Used in filters)
 =============================== */
 export const getRetailersByCampaign = async (req, res) => {
     try {
@@ -665,7 +750,6 @@ export const getRetailersByCampaign = async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const { campaignId } = req.query;
 
-        // If no campaignId provided, return all retailers (for independent filtering)
         if (!campaignId) {
             const allRetailers = await Retailer.find({})
                 .select(
@@ -679,7 +763,6 @@ export const getRetailersByCampaign = async (req, res) => {
             });
         }
 
-        // Find campaign and get assigned retailers
         const campaign = await Campaign.findById(campaignId)
             .select("assignedRetailers")
             .lean();
@@ -688,7 +771,6 @@ export const getRetailersByCampaign = async (req, res) => {
             return res.status(404).json({ message: "Campaign not found" });
         }
 
-        // Extract retailer IDs from assignedRetailers
         const assignedRetailerIds = campaign.assignedRetailers.map(
             (ar) => ar.retailerId
         );
@@ -701,7 +783,6 @@ export const getRetailersByCampaign = async (req, res) => {
             });
         }
 
-        // Fetch full retailer details
         const retailers = await Retailer.find({
             _id: { $in: assignedRetailerIds },
         })
@@ -724,7 +805,6 @@ export const getRetailersByCampaign = async (req, res) => {
 /* ===============================
    GET CAMPAIGNS ASSIGNED STATUS
 =============================== */
-
 export const getRetailerCampaignStatus = async (req, res) => {
     try {
         const token = req.headers.authorization?.split(" ")[1];
@@ -742,7 +822,6 @@ export const getRetailerCampaignStatus = async (req, res) => {
         if (!campaign)
             return res.status(404).json({ message: "Campaign not found" });
 
-        // Find the retailer entry in assignedRetailers
         const retailerEntry = campaign.assignedRetailers.find(
             (r) => r.retailerId?.toString() === retailerId.toString()
         );
@@ -752,7 +831,6 @@ export const getRetailerCampaignStatus = async (req, res) => {
                 message: "You are not assigned to this campaign",
             });
 
-        // Return campaign with retailer-specific status
         res.status(200).json({
             campaignId: campaign._id,
             name: campaign.name,
@@ -812,7 +890,6 @@ export const updateCampaignStatus = async (req, res) => {
                 .status(400)
                 .json({ message: "No retailers assigned to this campaign" });
 
-        // Find the retailer entry
         const retailerEntry = campaign.assignedRetailers.find(
             (r) => r.retailerId?.toString() === retailerId.toString()
         );
@@ -822,7 +899,6 @@ export const updateCampaignStatus = async (req, res) => {
                 .status(403)
                 .json({ message: "You are not assigned to this campaign" });
 
-        // Update status and timestamp
         retailerEntry.status = status;
         retailerEntry.updatedAt = new Date();
 
@@ -880,9 +956,13 @@ export const getRetailerCampaignPayments = async (req, res) => {
         });
     }
 };
+
+/* ===============================
+   SUBMIT RETAILER REPORT - UPDATED FOR CLOUDINARY
+=============================== */
 export const submitRetailerReport = async (req, res) => {
     try {
-        const retailerId = req.user.id; // retailer from JWT
+        const retailerId = req.user.id;
 
         const {
             campaignId,
@@ -902,7 +982,6 @@ export const submitRetailerReport = async (req, res) => {
             return res.status(400).json({ message: "campaignId is required" });
         }
 
-        // Retailer → Campaign validation
         const campaign = await Campaign.findById(campaignId);
         if (!campaign) {
             return res.status(404).json({ message: "Campaign not found" });
@@ -918,9 +997,27 @@ export const submitRetailerReport = async (req, res) => {
                 .json({ message: "Retailer not assigned to this campaign" });
         }
 
-        // Create report
+        // ========================================
+        // CLOUDINARY UPLOAD - Multiple Images
+        // ========================================
+        const uploadedImages = [];
+        if (req.files?.images) {
+            for (const file of req.files.images) {
+                const result = await uploadToCloudinary(
+                    file.buffer,
+                    "reports/retailer_images",
+                    getResourceType(file.mimetype)
+                );
+                uploadedImages.push({
+                    url: result.secure_url,
+                    publicId: result.public_id,
+                    fileName: file.originalname,
+                });
+            }
+        }
+
         const report = new EmployeeReport({
-            employeeId: null, // retailer report
+            employeeId: null,
             retailerId,
             campaignId,
             visitType,
@@ -935,19 +1032,10 @@ export const submitRetailerReport = async (req, res) => {
                 latitude: Number(latitude) || null,
                 longitude: Number(longitude) || null,
             },
-
+            images: uploadedImages,
             submittedByRole: "Retailer",
             submittedByRetailer: retailerId,
         });
-
-        // Images upload
-        if (req.files?.images) {
-            report.images = req.files.images.map((file) => ({
-                data: file.buffer,
-                contentType: file.mimetype,
-                fileName: file.originalname,
-            }));
-        }
 
         await report.save();
 
@@ -960,6 +1048,11 @@ export const submitRetailerReport = async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
+
+/* ===============================
+   VIEW REPORT IMAGE - NO LONGER NEEDED
+   (Images accessible via Cloudinary URLs)
+=============================== */
 export const viewReportImage = async (req, res) => {
     try {
         const { reportId, imageIndex } = req.params;
@@ -970,42 +1063,56 @@ export const viewReportImage = async (req, res) => {
         }
 
         const img = report.images[imageIndex];
-        if (!img || !img.data) {
+        if (!img || !img.url) {
             return res.status(404).json({ message: "Image not found" });
         }
 
-        res.setHeader("Content-Type", img.contentType);
-        return res.end(img.data);
+        // Return Cloudinary URL
+        res.status(200).json({
+            url: img.url,
+            publicId: img.publicId,
+            fileName: img.fileName,
+        });
     } catch (err) {
         console.error("View report image error:", err);
         res.status(500).json({ message: "Server error", error: err.message });
     }
 };
+
+/* ===============================
+   VIEW BILL COPY - NO LONGER NEEDED
+   (Bill copies accessible via Cloudinary URLs)
+=============================== */
 export const viewBillCopy = async (req, res) => {
     try {
         const { reportId } = req.params;
 
         const report = await EmployeeReport.findById(reportId);
-        if (!report || !report.billCopy?.data) {
+        if (!report || !report.billCopy?.url) {
             return res.status(404).json({ message: "Bill copy not found" });
         }
 
-        res.setHeader("Content-Type", report.billCopy.contentType);
-        return res.end(report.billCopy.data);
+        // Return Cloudinary URL
+        res.status(200).json({
+            url: report.billCopy.url,
+            publicId: report.billCopy.publicId,
+            fileName: report.billCopy.fileName,
+        });
     } catch (err) {
         console.error("View bill copy error:", err);
         res.status(500).json({ message: "Server error", error: err.message });
     }
 };
+
+/* ===============================
+   GET RETAILER REPORTS - UPDATED FOR CLOUDINARY
+=============================== */
 export const getRetailerReports = async (req, res) => {
     try {
-        const retailerId = req.user.id; // retailer extracted from JWT
+        const retailerId = req.user.id;
 
         const { campaignId, fromDate, toDate } = req.query;
 
-        // --------------------------
-        // Build Filter
-        // --------------------------
         const filter = { retailerId };
 
         if (campaignId) filter.campaignId = campaignId;
@@ -1016,9 +1123,6 @@ export const getRetailerReports = async (req, res) => {
             if (toDate) filter.createdAt.$lte = new Date(toDate);
         }
 
-        // --------------------------
-        // Fetch Reports (NO lean())
-        // --------------------------
         const reports = await EmployeeReport.find(filter)
             .populate("employeeId", "name phone email position")
             .populate("campaignId", "name type client")
@@ -1037,48 +1141,43 @@ export const getRetailerReports = async (req, res) => {
             });
         }
 
-        // --------------------------
-        // Convert images → base64
-        // --------------------------
+        // ========================================
+        // NO MORE BASE64 CONVERSION - Return URLs
+        // ========================================
         const finalReports = reports.map((r) => ({
             ...r.toObject(),
 
-            // Campaign Info
             campaignName: r.campaignId?.name || "",
             campaignType: r.campaignId?.type || "",
             clientName: r.campaignId?.client || "",
 
-            // Employee Info (if employee filled)
             employeeName: r.employeeId?.name || "",
             employeePhone: r.employeeId?.phone || "",
             employeeEmail: r.employeeId?.email || "",
             employeePosition: r.employeeId?.position || "",
 
-            // Retailer Info
             retailerName: r.retailerId?.name || "",
             retailerUniqueId: r.retailerId?.uniqueId || "",
             retailerCode: r.retailerId?.retailerCode || "",
             shopName: r.retailerId?.shopDetails?.shopName || "",
 
-            // Visit Info
             visitDate: r.visitScheduleId?.visitDate || "",
             visitStatus: r.visitScheduleId?.status || "",
             visitType: r.visitScheduleId?.visitType || "",
 
-            // Images in Base64
+            // Images are now just URLs - no base64 needed
             images:
                 r.images?.map((img) => ({
+                    url: img.url,
+                    publicId: img.publicId,
                     fileName: img.fileName,
-                    contentType: img.contentType,
-                    base64: img.data?.toString("base64") || null,
                 })) || [],
 
-            // Bill Copy in Base64
-            billCopy: r.billCopy?.data
+            billCopy: r.billCopy?.url
                 ? {
+                      url: r.billCopy.url,
+                      publicId: r.billCopy.publicId,
                       fileName: r.billCopy.fileName,
-                      contentType: r.billCopy.contentType,
-                      base64: r.billCopy.data.toString("base64"),
                   }
                 : null,
         }));

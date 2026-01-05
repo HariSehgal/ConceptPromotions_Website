@@ -17,7 +17,7 @@ export const uploadToCloudinary = (buffer, folder, resourceType = "auto") => {
         const uploadStream = cloudinary.uploader.upload_stream(
             {
                 folder: folder,
-                resource_type: resourceType, // 'image', 'raw' for PDFs, or 'auto'
+                resource_type: resourceType,
             },
             (error, result) => {
                 if (error) reject(error);

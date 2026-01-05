@@ -5,11 +5,14 @@ import {
     StockReport,
     WindowDisplayReport,
 } from "../models/report.model.js";
-import { Employee } from "../models/user.js";
-// import { Retailer } from "../models/user.js";
 import { Retailer } from "../models/retailer.model.js";
-import { Campaign, VisitSchedule } from "../models/user.js";
-import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.config.js";
+import { Campaign, Employee, VisitSchedule } from "../models/user.js";
+import {
+    deleteFromCloudinary,
+    uploadToCloudinary,
+} from "../utils/cloudinary.config.js";
+import { getResourceType } from "../utils/cloudinary.helper.js";
+
 /* ===============================
    HELPER: GET CORRECT MODEL BY REPORT TYPE
 =============================== */
@@ -27,14 +30,13 @@ const getReportModel = (reportType) => {
 };
 
 /* ===============================
-   CREATE REPORT
+   CREATE REPORT - UPDATED FOR CLOUDINARY
 =============================== */
 export const createReport = async (req, res) => {
     try {
         console.log("BODY:", req.body);
         console.log("FILES:", req.files);
 
-        // Reconstruct nested objects from FormData
         const {
             reportType,
             campaignId,
@@ -45,7 +47,6 @@ export const createReport = async (req, res) => {
             dateOfSubmission,
             remarks,
             location,
-            // Type-specific fields
             stockType,
             brand,
             product,
@@ -200,7 +201,10 @@ export const createReport = async (req, res) => {
         ========================== */
         if (req.files) {
             // Window Display Images
-            if (reportType === "Window Display" && req.files.shopDisplayImages) {
+            if (
+                reportType === "Window Display" &&
+                req.files.shopDisplayImages
+            ) {
                 const images = Array.isArray(req.files.shopDisplayImages)
                     ? req.files.shopDisplayImages
                     : [req.files.shopDisplayImages];
@@ -327,7 +331,6 @@ export const createReport = async (req, res) => {
     }
 };
 
-
 /* ===============================
    GET ALL REPORTS (WITH FILTERS)
 =============================== */
@@ -345,7 +348,6 @@ export const getAllReports = async (req, res) => {
             limit = 50,
         } = req.query;
 
-        // Build filter object
         const filter = {};
 
         if (campaignId) filter.campaignId = campaignId;
@@ -360,7 +362,6 @@ export const getAllReports = async (req, res) => {
             if (endDate) filter.dateOfSubmission.$lte = new Date(endDate);
         }
 
-        // Pagination
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
         const reports = await Report.find(filter)
@@ -411,7 +412,6 @@ export const getAllClientReports = async (req, res) => {
             limit = 50,
         } = req.query;
 
-        // Build filter object
         const filter = {};
 
         if (campaignId) filter.campaignId = campaignId;
@@ -426,12 +426,10 @@ export const getAllClientReports = async (req, res) => {
             if (endDate) filter.dateOfSubmission.$lte = new Date(endDate);
         }
 
-        // Add filter to only include specific reportTypes
         filter.reportType = {
             $in: ["Window Display", "Stock", "Others"],
         };
 
-        // Pagination
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
         const reports = await Report.find(filter)
@@ -501,7 +499,7 @@ export const getReportById = async (req, res) => {
 };
 
 /* ===============================
-   UPDATE REPORT (ADMIN ONLY) - FIXED VERSION
+   UPDATE REPORT - UPDATED FOR CLOUDINARY
 =============================== */
 /* ===============================
    UPDATE REPORT (ADMIN ONLY) - WITH CLOUDINARY
@@ -525,7 +523,7 @@ export const updateReport = async (req, res) => {
             ? JSON.parse(req.body.removedFileIndices)
             : [];
 
-        // Reconstruct nested objects if needed
+        // Reconstruct nested objects
         if (req.body["retailer[retailerId]"]) {
             updateData.retailer = {
                 retailerId: req.body["retailer[retailerId]"],
@@ -542,7 +540,6 @@ export const updateReport = async (req, res) => {
             };
         }
 
-        // Find existing report
         const existingReport = await Report.findById(id);
         if (!existingReport) {
             return res.status(404).json({
@@ -656,7 +653,9 @@ export const updateReport = async (req, res) => {
 
         // ---------- HANDLE REPORT TYPE CHANGE ----------
         if (newReportType !== oldReportType) {
-            console.log(`🔄 Changing report type from ${oldReportType} to ${newReportType}`);
+            console.log(
+                `🔄 Changing report type from ${oldReportType} to ${newReportType}`
+            );
 
             /* =========================
                DELETE OLD FILES FROM CLOUDINARY
@@ -666,7 +665,10 @@ export const updateReport = async (req, res) => {
                     try {
                         await deleteFromCloudinary(img.publicId, "image");
                     } catch (err) {
-                        console.error(`Failed to delete image ${img.publicId}:`, err);
+                        console.error(
+                            `Failed to delete image ${img.publicId}:`,
+                            err
+                        );
                     }
                 }
             }
@@ -675,7 +677,10 @@ export const updateReport = async (req, res) => {
                     try {
                         await deleteFromCloudinary(bill.publicId, "raw");
                     } catch (err) {
-                        console.error(`Failed to delete bill ${bill.publicId}:`, err);
+                        console.error(
+                            `Failed to delete bill ${bill.publicId}:`,
+                            err
+                        );
                     }
                 }
             }
@@ -684,7 +689,37 @@ export const updateReport = async (req, res) => {
                     try {
                         await deleteFromCloudinary(file.publicId, "raw");
                     } catch (err) {
-                        console.error(`Failed to delete file ${file.publicId}:`, err);
+                        console.error(
+                            `Failed to delete file ${file.publicId}:`,
+                            err
+                        );
+                    }
+                }
+            }
+
+            // Delete old files from Cloudinary before type change
+            if (
+                oldReportType === "Window Display" &&
+                existingReport.shopDisplayImages
+            ) {
+                for (const img of existingReport.shopDisplayImages) {
+                    if (img.publicId) {
+                        await deleteFromCloudinary(img.publicId, "image");
+                    }
+                }
+            } else if (oldReportType === "Stock" && existingReport.billCopies) {
+                for (const bill of existingReport.billCopies) {
+                    if (bill.publicId) {
+                        await deleteFromCloudinary(
+                            bill.publicId,
+                            getResourceType("application/pdf")
+                        );
+                    }
+                }
+            } else if (oldReportType === "Others" && existingReport.files) {
+                for (const file of existingReport.files) {
+                    if (file.publicId) {
+                        await deleteFromCloudinary(file.publicId, "raw");
                     }
                 }
             }
@@ -696,12 +731,18 @@ export const updateReport = async (req, res) => {
                 _id: id,
                 reportType: newReportType,
                 campaignId: existingReport.campaignId,
-                submittedBy: updateData.submittedBy || existingReport.submittedBy,
+                submittedBy:
+                    updateData.submittedBy || existingReport.submittedBy,
                 retailer: updateData.retailer || existingReport.retailer,
                 employee: updateData.employee || existingReport.employee,
                 frequency: updateData.frequency || existingReport.frequency,
-                dateOfSubmission: updateData.dateOfSubmission || existingReport.dateOfSubmission,
-                remarks: updateData.remarks !== undefined ? updateData.remarks : existingReport.remarks,
+                dateOfSubmission:
+                    updateData.dateOfSubmission ||
+                    existingReport.dateOfSubmission,
+                remarks:
+                    updateData.remarks !== undefined
+                        ? updateData.remarks
+                        : existingReport.remarks,
                 visitScheduleId: existingReport.visitScheduleId,
                 typeOfVisit: existingReport.typeOfVisit,
                 attendedVisit: existingReport.attendedVisit,
@@ -709,7 +750,7 @@ export const updateReport = async (req, res) => {
                 location: existingReport.location,
             };
 
-            // Add type-specific fields based on NEW report type
+            // Add type-specific fields and upload new files to Cloudinary
             if (newReportType === "Stock") {
                 newReportData.stockType = updateData.stockType;
                 newReportData.brand = updateData.brand;
@@ -718,16 +759,53 @@ export const updateReport = async (req, res) => {
                 newReportData.productType = updateData.productType;
                 newReportData.quantity = updateData.quantity;
 
-                if (newFiles.billCopies) {
-                    newReportData.billCopies = newFiles.billCopies;
+                if (req.files?.billCopies) {
+                    const bills = Array.isArray(req.files.billCopies)
+                        ? req.files.billCopies
+                        : [req.files.billCopies];
+
+                    const uploadedBills = [];
+                    for (const file of bills) {
+                        const result = await uploadToCloudinary(
+                            file.buffer,
+                            "reports/stock_bills",
+                            getResourceType(file.mimetype)
+                        );
+                        uploadedBills.push({
+                            url: result.secure_url,
+                            publicId: result.public_id,
+                            fileName: file.originalname,
+                            uploadedAt: new Date(),
+                        });
+                    }
+                    newReportData.billCopies = uploadedBills;
                 }
             } else if (newReportType === "Window Display") {
                 if (newFiles.shopDisplayImages) {
-                    newReportData.shopDisplayImages = newFiles.shopDisplayImages;
+                    newReportData.shopDisplayImages =
+                        newFiles.shopDisplayImages;
                 }
             } else if (newReportType === "Others") {
-                if (newFiles.files) {
-                    newReportData.files = newFiles.files;
+                if (req.files?.files) {
+                    const otherFiles = Array.isArray(req.files.files)
+                        ? req.files.files
+                        : [req.files.files];
+
+                    const uploadedFiles = [];
+                    for (const file of otherFiles) {
+                        const result = await uploadToCloudinary(
+                            file.buffer,
+                            "reports/other_files",
+                            getResourceType(file.mimetype)
+                        );
+                        uploadedFiles.push({
+                            url: result.secure_url,
+                            publicId: result.public_id,
+                            fileName: file.originalname,
+                            uploadedAt: new Date(),
+                        });
+                    }
+                    newReportData.files = uploadedFiles;
                 }
             }
 
@@ -759,12 +837,15 @@ export const updateReport = async (req, res) => {
 
         // Stock-specific scalar fields
         if (oldReportType === "Stock") {
-            if (updateData.stockType) existingReport.stockType = updateData.stockType;
+            if (updateData.stockType)
+                existingReport.stockType = updateData.stockType;
             if (updateData.brand) existingReport.brand = updateData.brand;
             if (updateData.product) existingReport.product = updateData.product;
             if (updateData.sku) existingReport.sku = updateData.sku;
-            if (updateData.productType) existingReport.productType = updateData.productType;
-            if (updateData.quantity) existingReport.quantity = updateData.quantity;
+            if (updateData.productType)
+                existingReport.productType = updateData.productType;
+            if (updateData.quantity)
+                existingReport.quantity = updateData.quantity;
         }
 
         // Handle file arrays with Cloudinary deletion
@@ -777,14 +858,19 @@ export const updateReport = async (req, res) => {
                DELETE REMOVED IMAGES FROM CLOUDINARY
             ========================== */
             if (removedImageIndices.length > 0) {
-                const imagesToDelete = removedImageIndices.map(idx => existingImages[idx]);
-                
+                const imagesToDelete = removedImageIndices.map(
+                    (idx) => existingImages[idx]
+                );
+
                 for (const img of imagesToDelete) {
                     if (img?.publicId) {
                         try {
                             await deleteFromCloudinary(img.publicId, "image");
                         } catch (err) {
-                            console.error(`Failed to delete image ${img.publicId}:`, err);
+                            console.error(
+                                `Failed to delete image ${img.publicId}:`,
+                                err
+                            );
                         }
                     }
                 }
@@ -792,13 +878,25 @@ export const updateReport = async (req, res) => {
                 existingImages = existingImages.filter(
                     (_, idx) => !removedImageIndices.includes(idx)
                 );
-                console.log("After removal - Image count:", existingImages.length);
+                console.log(
+                    "After removal - Image count:",
+                    existingImages.length
+                );
             }
 
             if (newFiles.shopDisplayImages) {
-                console.log("Adding new images:", newFiles.shopDisplayImages.length);
-                existingImages = [...existingImages, ...newFiles.shopDisplayImages];
-                console.log("After addition - Image count:", existingImages.length);
+                console.log(
+                    "Adding new images:",
+                    newFiles.shopDisplayImages.length
+                );
+                existingImages = [
+                    ...existingImages,
+                    ...newFiles.shopDisplayImages,
+                ];
+                console.log(
+                    "After addition - Image count:",
+                    existingImages.length
+                );
             }
 
             existingReport.shopDisplayImages = existingImages;
@@ -812,14 +910,19 @@ export const updateReport = async (req, res) => {
                DELETE REMOVED BILLS FROM CLOUDINARY
             ========================== */
             if (removedBillIndices.length > 0) {
-                const billsToDelete = removedBillIndices.map(idx => existingBills[idx]);
-                
+                const billsToDelete = removedBillIndices.map(
+                    (idx) => existingBills[idx]
+                );
+
                 for (const bill of billsToDelete) {
                     if (bill?.publicId) {
                         try {
                             await deleteFromCloudinary(bill.publicId, "raw");
                         } catch (err) {
-                            console.error(`Failed to delete bill ${bill.publicId}:`, err);
+                            console.error(
+                                `Failed to delete bill ${bill.publicId}:`,
+                                err
+                            );
                         }
                     }
                 }
@@ -827,13 +930,19 @@ export const updateReport = async (req, res) => {
                 existingBills = existingBills.filter(
                     (_, idx) => !removedBillIndices.includes(idx)
                 );
-                console.log("After removal - Bill count:", existingBills.length);
+                console.log(
+                    "After removal - Bill count:",
+                    existingBills.length
+                );
             }
 
             if (newFiles.billCopies) {
                 console.log("Adding new bills:", newFiles.billCopies.length);
                 existingBills = [...existingBills, ...newFiles.billCopies];
-                console.log("After addition - Bill count:", existingBills.length);
+                console.log(
+                    "After addition - Bill count:",
+                    existingBills.length
+                );
             }
 
             existingReport.billCopies = existingBills;
@@ -841,20 +950,28 @@ export const updateReport = async (req, res) => {
         } else if (oldReportType === "Others") {
             let existingFilesArr = existingReport.files || [];
 
-            console.log("Before removal - File count:", existingFilesArr.length);
+            console.log(
+                "Before removal - File count:",
+                existingFilesArr.length
+            );
 
             /* =========================
                DELETE REMOVED FILES FROM CLOUDINARY
             ========================== */
             if (removedFileIndices.length > 0) {
-                const filesToDelete = removedFileIndices.map(idx => existingFilesArr[idx]);
-                
+                const filesToDelete = removedFileIndices.map(
+                    (idx) => existingFilesArr[idx]
+                );
+
                 for (const file of filesToDelete) {
                     if (file?.publicId) {
                         try {
                             await deleteFromCloudinary(file.publicId, "raw");
                         } catch (err) {
-                            console.error(`Failed to delete file ${file.publicId}:`, err);
+                            console.error(
+                                `Failed to delete file ${file.publicId}:`,
+                                err
+                            );
                         }
                     }
                 }
@@ -862,20 +979,25 @@ export const updateReport = async (req, res) => {
                 existingFilesArr = existingFilesArr.filter(
                     (_, idx) => !removedFileIndices.includes(idx)
                 );
-                console.log("After removal - File count:", existingFilesArr.length);
+                console.log(
+                    "After removal - File count:",
+                    existingFilesArr.length
+                );
             }
 
             if (newFiles.files) {
                 console.log("Adding new files:", newFiles.files.length);
                 existingFilesArr = [...existingFilesArr, ...newFiles.files];
-                console.log("After addition - File count:", existingFilesArr.length);
+                console.log(
+                    "After addition - File count:",
+                    existingFilesArr.length
+                );
             }
 
             existingReport.files = existingFilesArr;
             existingReport.markModified("files");
         }
 
-        // Finally save the existing document
         await existingReport.save();
 
         console.log("✅ Report updated and saved to MongoDB");
@@ -896,7 +1018,7 @@ export const updateReport = async (req, res) => {
 };
 
 /* ===============================
-   DELETE REPORT (ADMIN ONLY)
+   DELETE REPORT - UPDATED FOR CLOUDINARY
 =============================== */
 /* ===============================
    DELETE REPORT (ADMIN ONLY) - WITH CLOUDINARY CLEANUP
@@ -923,7 +1045,10 @@ export const deleteReport = async (req, res) => {
                 try {
                     await deleteFromCloudinary(img.publicId, "image");
                 } catch (err) {
-                    console.error(`Failed to delete image ${img.publicId}:`, err);
+                    console.error(
+                        `Failed to delete image ${img.publicId}:`,
+                        err
+                    );
                 }
             }
         }
@@ -934,7 +1059,10 @@ export const deleteReport = async (req, res) => {
                 try {
                     await deleteFromCloudinary(bill.publicId, "raw");
                 } catch (err) {
-                    console.error(`Failed to delete bill ${bill.publicId}:`, err);
+                    console.error(
+                        `Failed to delete bill ${bill.publicId}:`,
+                        err
+                    );
                 }
             }
         }
@@ -945,7 +1073,10 @@ export const deleteReport = async (req, res) => {
                 try {
                     await deleteFromCloudinary(file.publicId, "raw");
                 } catch (err) {
-                    console.error(`Failed to delete file ${file.publicId}:`, err);
+                    console.error(
+                        `Failed to delete file ${file.publicId}:`,
+                        err
+                    );
                 }
             }
         }
@@ -968,7 +1099,6 @@ export const deleteReport = async (req, res) => {
         });
     }
 };
-
 
 /* ===============================
    GET REPORTS BY CAMPAIGN
