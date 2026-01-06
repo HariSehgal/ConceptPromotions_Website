@@ -46,7 +46,7 @@ import {
 } from "../controllers/admin/report.controller.js";
 import {
     assignEmployeeToRetailer,
-    bulkRegisterRetailers,
+   
     getAllRetailers,
     getAssignedEmployeeForRetailer,
     getEmployeeRetailerMapping,
@@ -58,6 +58,7 @@ import {
     updateVisitScheduleDetails,
     updateVisitScheduleStatus,
 } from "../controllers/admin/visitSchedule.controller.js";
+import{ bulkRegisterRetailers} from "../controllers/retailerController.js"
 import {
     adminGetReportsByRetailer,
     adminSetPaymentPlan,
@@ -140,6 +141,7 @@ router.post(
     upload.single("file"),
     bulkRegisterRetailers
 );
+
 router.get(
     "/campaign/:campaignId/employee-retailer-mapping",
     protect,
