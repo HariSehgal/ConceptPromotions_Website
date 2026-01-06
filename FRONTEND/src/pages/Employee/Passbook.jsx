@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Select from "react-select";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -20,6 +20,22 @@ const customSelectStyles = {
         color: "#333",
         "&:active": { backgroundColor: "#FECACA" },
     }),
+    multiValue: (provided) => ({
+        ...provided,
+        backgroundColor: "#FEE2E2",
+    }),
+    multiValueLabel: (provided) => ({
+        ...provided,
+        color: "#E4002B",
+    }),
+    multiValueRemove: (provided) => ({
+        ...provided,
+        color: "#E4002B",
+        ":hover": {
+            backgroundColor: "#E4002B",
+            color: "white",
+        },
+    }),
     menu: (provided) => ({
         ...provided,
         zIndex: 20,
@@ -32,10 +48,11 @@ const EmployeePassbook = () => {
 
     // All Employee-Retailer Mappings
     const [employeeRetailerMappings, setEmployeeRetailerMappings] = useState([]);
+    const [budgets, setBudgets] = useState([]);
 
-    // Filters
-    const [selectedRetailer, setSelectedRetailer] = useState(null);
-    const [selectedCampaign, setSelectedCampaign] = useState(null);
+    // Filters (Multi-select)
+    const [selectedRetailers, setSelectedRetailers] = useState([]);
+    const [selectedCampaigns, setSelectedCampaigns] = useState([]);
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
 
@@ -43,11 +60,11 @@ const EmployeePassbook = () => {
     const [retailerOptions, setRetailerOptions] = useState([]);
     const [campaignOptions, setCampaignOptions] = useState([]);
 
-    // Passbook Data
-    const [passbookData, setPassbookData] = useState(null);
-    const [displayedCampaigns, setDisplayedCampaigns] = useState([]);
-
     const [loading, setLoading] = useState(true);
+
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [limit] = useState(2);
 
     // ===============================
     // FETCH EMPLOYEE INFO ON MOUNT
@@ -99,6 +116,13 @@ const EmployeePassbook = () => {
                 (c) => c.isActive === true
             );
 
+            // Fetch all budgets
+            const budgetsRes = await fetch(`${API_URL}/budgets`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const budgetsData = await budgetsRes.json();
+            setBudgets(budgetsData.budgets || []);
+
             // For each campaign, fetch employee-retailer mapping
             const allMappings = [];
 
@@ -138,8 +162,7 @@ const EmployeePassbook = () => {
                 if (!acc.find((r) => r.value === mapping.retailerId)) {
                     acc.push({
                         value: mapping.retailerId,
-                        label: `${mapping.retailerData.uniqueId || ""} - ${mapping.retailerData.shopDetails?.shopName || "N/A"
-                            }`,
+                        label: `${mapping.retailerData.uniqueId || ""} - ${mapping.retailerData.shopDetails?.shopName || "N/A"}`,
                         data: mapping.retailerData,
                     });
                 }
@@ -147,6 +170,20 @@ const EmployeePassbook = () => {
             }, []);
 
             setRetailerOptions(uniqueRetailers);
+
+            // Extract unique campaigns
+            const uniqueCampaigns = allMappings.reduce((acc, mapping) => {
+                if (!acc.find((c) => c.value === mapping.campaignId)) {
+                    acc.push({
+                        value: mapping.campaignId,
+                        label: mapping.campaignName,
+                        data: mapping.campaignData,
+                    });
+                }
+                return acc;
+            }, []);
+
+            setCampaignOptions(uniqueCampaigns);
         } catch (err) {
             console.error("Error fetching employee-retailer mappings:", err);
             toast.error("Failed to load assigned retailers", { theme: "dark" });
@@ -154,207 +191,184 @@ const EmployeePassbook = () => {
     };
 
     // ===============================
-    // FETCH PASSBOOK DATA WHEN RETAILER SELECTED
+    // HELPER FUNCTIONS
     // ===============================
-    useEffect(() => {
-        if (selectedRetailer) {
-            fetchPassbookData();
-        } else {
-            resetPassbookData();
+    const parseDate = (dateStr) => {
+        if (!dateStr) return null;
+
+        if (dateStr.includes('/')) {
+            const [day, month, year] = dateStr.split('/');
+            return new Date(`${year}-${month}-${day}`);
         }
-    }, [selectedRetailer]);
 
-    const fetchPassbookData = async () => {
-        if (!selectedRetailer) return;
+        return new Date(dateStr);
+    };
 
-        try {
-            const token = localStorage.getItem("token");
-            const params = new URLSearchParams();
-            params.append("retailerId", selectedRetailer.value);
+    const formatDateToDDMMYYYY = (dateStr) => {
+        if (!dateStr || dateStr === "N/A") return "N/A";
 
-            const response = await fetch(
-                `${API_URL}/budgets/passbook?${params.toString()}`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
+        const date = parseDate(dateStr);
+        if (!date || isNaN(date.getTime())) return "N/A";
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success && data.data && data.data.length > 0) {
-                    const budgetRecord = data.data[0];
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
 
-                    // Filter campaigns: Only show campaigns where employee is assigned to this retailer
-                    const assignedCampaignIds = employeeRetailerMappings
-                        .filter((m) => m.retailerId === selectedRetailer.value)
-                        .map((m) => m.campaignId);
+        return `${day}/${month}/${year}`;
+    };
 
-                    const filteredCampaigns = budgetRecord.campaigns.filter((c) =>
-                        assignedCampaignIds.includes(c.campaignId._id)
-                    );
+    const isDateInRange = (dateStr, start, end) => {
+        if (!start && !end) return true;
 
-                    if (filteredCampaigns.length === 0) {
-                        toast.info("No campaigns assigned to you for this retailer", { theme: "dark" });
-                        resetPassbookData();
-                        return;
-                    }
+        const date = parseDate(dateStr);
+        if (!date || isNaN(date.getTime())) return false;
 
-                    setPassbookData({
-                        ...budgetRecord,
-                        campaigns: filteredCampaigns,
-                    });
+        const startDateObj = start ? new Date(start) : null;
+        const endDateObj = end ? new Date(end) : null;
 
-                    setDisplayedCampaigns(filteredCampaigns);
+        date.setHours(0, 0, 0, 0);
+        if (startDateObj) startDateObj.setHours(0, 0, 0, 0);
+        if (endDateObj) endDateObj.setHours(0, 0, 0, 0);
 
-                    // Update campaign options based on assigned campaigns
-                    const campaignOpts = filteredCampaigns.map((c) => ({
-                        value: c.campaignId._id,
-                        label: c.campaignName,
-                        data: c.campaignId,
-                    }));
-                    setCampaignOptions(campaignOpts);
-                } else {
-                    toast.info("No passbook data found for this retailer", { theme: "dark" });
-                    resetPassbookData();
-                }
-            } else {
-                toast.error("Failed to fetch passbook data", { theme: "dark" });
-                resetPassbookData();
+        if (startDateObj && endDateObj) {
+            return date >= startDateObj && date <= endDateObj;
+        } else if (startDateObj) {
+            return date >= startDateObj;
+        } else if (endDateObj) {
+            return date <= endDateObj;
+        }
+        return true;
+    };
+
+    // ===============================
+    // BUILD TABLE DATA WITH FILTERS
+    // ===============================
+    const allDisplayData = useMemo(() => {
+        const data = [];
+
+        // Get assigned campaign IDs and retailer IDs
+        const assignedCampaignIds = employeeRetailerMappings.map(m => m.campaignId);
+        const assignedRetailerIds = employeeRetailerMappings.map(m => m.retailerId);
+
+        budgets.forEach((budget) => {
+            const retailerId = budget.retailerId?._id || budget.retailerId;
+            const outletCode = budget.outletCode || "N/A";
+            const shopName = budget.shopName || "N/A";
+            const state = budget.state || "N/A";
+
+            // Only show retailers assigned to this employee
+            if (!assignedRetailerIds.includes(retailerId)) return;
+
+            // Apply Retailer Filter
+            if (selectedRetailers.length > 0) {
+                const retailerIds = selectedRetailers.map((r) => r.value);
+                if (!retailerIds.includes(retailerId)) return;
             }
-        } catch (error) {
-            console.error("Error fetching passbook:", error);
-            toast.error("Failed to fetch passbook data", { theme: "dark" });
-            resetPassbookData();
-        }
-    };
 
-    const resetPassbookData = () => {
-        setPassbookData(null);
-        setDisplayedCampaigns([]);
-        setCampaignOptions([]);
-    };
+            (budget.campaigns || []).forEach((campaignBudget) => {
+                const campaignId = campaignBudget.campaignId?._id || campaignBudget.campaignId;
+                const campaignName = campaignBudget.campaignName || "N/A";
+                const client = campaignBudget.campaignId?.client || "N/A";
 
-    // ===============================
-    // APPLY FILTERS
-    // ===============================
-    useEffect(() => {
-        if (passbookData) {
-            applyFilters();
-        }
-    }, [selectedCampaign, fromDate, toDate, passbookData]);
+                // Only show campaigns assigned to this employee for this retailer
+                const isAssigned = employeeRetailerMappings.some(
+                    m => m.campaignId === campaignId && m.retailerId === retailerId
+                );
+                if (!isAssigned) return;
 
-    const applyFilters = () => {
-        if (!passbookData) return;
+                // Apply Campaign Filter
+                if (selectedCampaigns.length > 0) {
+                    const campaignIds = selectedCampaigns.map((c) => c.value);
+                    if (!campaignIds.includes(campaignId)) return;
+                }
 
-        let filtered = [...passbookData.campaigns];
+                const filteredInstallments = (campaignBudget.installments || []).filter(
+                    (inst) => isDateInRange(inst.dateOfInstallment, fromDate, toDate)
+                );
 
-        // Filter by Campaign
-        if (selectedCampaign) {
-            filtered = filtered.filter(
-                (c) => c.campaignId._id === selectedCampaign.value
-            );
-        }
+                const cPaid = filteredInstallments.reduce((sum, inst) => {
+                    return sum + (inst.installmentAmount || 0);
+                }, 0);
 
-        // Filter by Date Range (filter installments within campaigns)
-        if (fromDate || toDate) {
-            filtered = filtered
-                .map((campaign) => {
-                    const filteredInstallments = campaign.installments.filter((inst) => {
-                        // Parse date from dd/mm/yyyy format
-                        const instDateString = inst.dateOfInstallment;
-                        let instDate;
+                const cPending = campaignBudget.tca - cPaid;
 
-                        // Handle both dd/mm/yyyy and ISO date formats
-                        if (instDateString.includes('/')) {
-                            const [day, month, year] = instDateString.split('/');
-                            instDate = new Date(`${year}-${month}-${day}`);
-                        } else {
-                            instDate = new Date(instDateString);
-                        }
-
-                        const from = fromDate ? new Date(fromDate) : null;
-                        const to = toDate ? new Date(toDate) : null;
-
-                        // Set time to start/end of day for accurate comparison
-                        if (from) from.setHours(0, 0, 0, 0);
-                        if (to) to.setHours(23, 59, 59, 999);
-                        instDate.setHours(0, 0, 0, 0);
-
-                        if (from && to) {
-                            return instDate >= from && instDate <= to;
-                        } else if (from) {
-                            return instDate >= from;
-                        } else if (to) {
-                            return instDate <= to;
-                        }
-                        return true;
+                let lastPaymentDate = "N/A";
+                if (filteredInstallments.length > 0) {
+                    const sortedInstallments = [...filteredInstallments].sort((a, b) => {
+                        const dateA = parseDate(a.dateOfInstallment);
+                        const dateB = parseDate(b.dateOfInstallment);
+                        return dateB - dateA;
                     });
+                    lastPaymentDate = sortedInstallments[0].dateOfInstallment;
+                }
 
-                    // Recalculate cPaid and cPending based on filtered installments
-                    const filteredCPaid = filteredInstallments.reduce(
-                        (sum, inst) => sum + (inst.installmentAmount || 0),
-                        0
-                    );
-                    const filteredCPending = campaign.tca - filteredCPaid;
+                if ((fromDate || toDate) && filteredInstallments.length === 0) {
+                    return;
+                }
 
-                    return {
-                        ...campaign,
-                        installments: filteredInstallments,
-                        cPaid: filteredCPaid,
-                        cPending: filteredCPending,
-                    };
-                })
-                .filter((campaign) => campaign.installments.length > 0);
-        }
+                data.push({
+                    retailerId,
+                    outletCode,
+                    shopName,
+                    state,
+                    client,
+                    campaignName,
+                    campaignId,
+                    tca: campaignBudget.tca || 0,
+                    cPaid,
+                    cPending,
+                    lastPaymentDate,
+                    installments: filteredInstallments,
+                });
+            });
+        });
 
-        setDisplayedCampaigns(filtered);
-    };
-
-    // ===============================
-    // CLEAR FILTERS
-    // ===============================
-    const handleClearFilters = () => {
-        setSelectedRetailer(null);
-        setSelectedCampaign(null);
-        setFromDate("");
-        setToDate("");
-        resetPassbookData();
-    };
-
-    // ===============================
-    // CALCULATE FILTERED TOTALS
-    // ===============================
-    const getFilteredSummary = () => {
-        if (!displayedCampaigns.length) {
-            return {
-                filteredTAR: 0,
-                filteredTAPaid: 0,
-                filteredTAPending: 0,
-            };
-        }
-
-        const filteredTAR = displayedCampaigns.reduce(
-            (sum, campaign) => sum + (campaign.tca || 0),
-            0
-        );
-
-        const filteredTAPaid = displayedCampaigns.reduce(
-            (sum, campaign) => sum + (campaign.cPaid || 0),
-            0
-        );
-
-        const filteredTAPending = filteredTAR - filteredTAPaid;
-
-        return { filteredTAR, filteredTAPaid, filteredTAPending };
-    };
+        return data;
+    }, [
+        budgets,
+        employeeRetailerMappings,
+        selectedRetailers,
+        selectedCampaigns,
+        fromDate,
+        toDate,
+    ]);
 
     // ===============================
-    // DOWNLOAD PASSBOOK
+    // PAGINATION LOGIC
+    // ===============================
+    const totalRecords = allDisplayData.length;
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    const displayData = useMemo(() => {
+        const startIndex = (currentPage - 1) * limit;
+        const endIndex = startIndex + limit;
+        return allDisplayData.slice(startIndex, endIndex);
+    }, [allDisplayData, currentPage, limit]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedRetailers, selectedCampaigns, fromDate, toDate]);
+
+    // ===============================
+    // CALCULATE CARD TOTALS
+    // ===============================
+    const cardTotals = useMemo(() => {
+        const totalBudget = allDisplayData.reduce((sum, record) => sum + record.tca, 0);
+        const totalSpending = allDisplayData.reduce((sum, record) => sum + record.cPaid, 0);
+        const totalPending = allDisplayData.reduce((sum, record) => sum + record.cPending, 0);
+
+        return {
+            totalBudget,
+            totalSpending,
+            totalPending,
+        };
+    }, [allDisplayData]);
+
+    // ===============================
+    // DOWNLOAD PASSBOOK TO EXCEL
     // ===============================
     const handleDownloadPassbook = () => {
-        if (!passbookData || displayedCampaigns.length === 0) {
+        if (allDisplayData.length === 0) {
             toast.error("No data to download", { theme: "dark" });
             return;
         }
@@ -364,91 +378,116 @@ const EmployeePassbook = () => {
         // Row 1: Title
         rows.push({
             A: "EMPLOYEE PASSBOOK REPORT",
-            B: "", C: "", D: "", E: "", F: "", G: "", H: "", I: "", J: "", K: ""
+            B: "", C: "", D: "", E: "", F: "", G: "", H: "", I: "", J: ""
         });
 
         // Row 2: Empty
         rows.push({});
 
-        // Row 3: Employee Details
+        // Row 3: EMPLOYEE DETAILS
+        rows.push({ A: "EMPLOYEE DETAILS" });
+
+        // Row 4: Employee Info
         rows.push({
             A: "Employee Name:",
             B: employeeInfo?.name || "N/A",
             C: "",
             D: "Employee Code:",
-            E: employeeInfo?.employeeId || "N/A",
-            F: "",
-            G: "Outlet Code:",
-            H: passbookData.outletCode,
-            I: "",
-            J: "Shop Name:",
-            K: passbookData.shopName
+            E: employeeInfo?.employeeId || "N/A"
         });
 
-        // Row 4 & 5: Empty rows
+        // Row 5 & 6: Empty rows
         rows.push({});
         rows.push({});
 
-        // Row 6: Header
+        // Row 7: SUMMARY label
+        rows.push({ A: "SUMMARY" });
+
+        // Row 8: Summary values
+        rows.push({
+            A: "Total Budget",
+            B: `₹${cardTotals.totalBudget.toLocaleString()}`,
+            C: "",
+            D: "Total Paid",
+            E: `₹${cardTotals.totalSpending.toLocaleString()}`,
+            F: "",
+            G: "Total Balance",
+            H: `₹${cardTotals.totalPending.toLocaleString()}`,
+            I: "", J: ""
+        });
+
+        // Row 9 & 10: Empty rows
+        rows.push({});
+        rows.push({});
+
+        // Row 11: Header
         rows.push({
             A: "S.No",
             B: "State",
             C: "Outlet Name",
             D: "Outlet Code",
             E: "Campaign Name",
-            F: "Organization Name",
-            G: "Type",
-            H: "Budget (TCA)",
-            I: "Paid",
-            J: "Pending",
-            K: "Amount",
-            L: "Date",
-            M: "UTR Number",
-            N: "Remarks"
+            F: "Client",
+            G: "Total Campaign Amount",
+            H: "Paid",
+            I: "Balance",
+            J: "Date",
+            K: "UTR Number",
+            L: "Remarks"
         });
 
-        // Data rows with continuous S.No
+        // ✅ Data rows with continuous S.No and running balance calculation
         let serialNumber = 1;
 
-        displayedCampaigns.forEach((campaign) => {
-            const installments = campaign.installments || [];
+        allDisplayData.forEach((record) => {
+            const installments = record.installments || [];
+            const totalBudget = record.tca;
 
             if (installments.length === 0) {
-                // No installments - single row
+                // ✅ No installments - show "-" for empty fields
                 rows.push({
                     A: serialNumber++,
-                    B: passbookData.state,
-                    C: passbookData.shopName,
-                    D: passbookData.outletCode,
-                    E: campaign.campaignName,
-                    F: campaign.campaignId?.client || "N/A",
-                    G: campaign.campaignId?.type || "N/A",
-                    H: campaign.tca,
-                    I: campaign.cPaid,
-                    J: campaign.cPending,
-                    K: "",
-                    L: "",
-                    M: "",
-                    N: ""
+                    B: record.state,
+                    C: record.shopName,
+                    D: record.outletCode,
+                    E: record.campaignName,
+                    F: record.client,
+                    G: totalBudget,
+                    H: "-",
+                    I: totalBudget,
+                    J: "-",
+                    K: "-",
+                    L: "-"
                 });
             } else {
-                // Has installments - each installment gets its own row
-                installments.forEach((inst) => {
+                // ✅ Has installments - Calculate running balance
+                let cumulativePaid = 0;
+
+                // Sort installments by date (oldest first) for proper balance calculation
+                const sortedInstallments = [...installments].sort((a, b) => {
+                    const dateA = parseDate(a.dateOfInstallment);
+                    const dateB = parseDate(b.dateOfInstallment);
+                    return dateA - dateB; // Ascending order
+                });
+
+                sortedInstallments.forEach((inst) => {
+                    const paidAmount = inst.installmentAmount || 0;
+                    cumulativePaid += paidAmount;
+                    const balance = totalBudget - cumulativePaid;
+
                     rows.push({
                         A: serialNumber++,
-                        B: passbookData.state,
-                        C: passbookData.shopName,
-                        D: passbookData.outletCode,
-                        E: campaign.campaignName,
-                        F: campaign.campaignId?.client || "N/A",
-                        G: campaign.campaignId?.type || "N/A",
-                        H: campaign.tca,
-                        I: campaign.cPaid,
-                        J: campaign.cPending,
-                        K: inst.installmentAmount,
-                        L: inst.dateOfInstallment,
-                        M: inst.utrNumber,
-                        N: inst.remarks || "-"
+                        B: record.state,
+                        C: record.shopName,
+                        D: record.outletCode,
+                        E: record.campaignName,
+                        F: record.client,
+                        G: totalBudget,
+                        H: paidAmount,
+                        I: balance,
+                        J: formatDateToDDMMYYYY(inst.dateOfInstallment),
+                        K: inst.utrNumber || "-",
+                        L: inst.remarks || "-"
                     });
                 });
             }
@@ -482,7 +521,7 @@ const EmployeePassbook = () => {
                 if (ws[cellAddress]) {
                     if (R === 0) {
                         ws[cellAddress].s = titleStyle;
-                    } else if (R === 5) { // Header is now at row 6 (index 5)
+                    } else if (R === 10) {
                         ws[cellAddress].s = headerStyle;
                     } else {
                         ws[cellAddress].s = dataStyle;
@@ -491,50 +530,124 @@ const EmployeePassbook = () => {
             }
         }
 
-        // Merge cells for title (Row 1, A1:N1)
+        // Merge cells for title (Row 1, A1:L1)
         if (!ws['!merges']) ws['!merges'] = [];
         ws['!merges'].push({
             s: { r: 0, c: 0 },
-            e: { r: 0, c: 13 }
+            e: { r: 0, c: 11 }
         });
 
         // Column widths
         ws["!cols"] = [
             { wpx: 60 },   // A: S.No
-            { wpx: 100 },  // B: State
+            { wpx: 120 },  // B: State
             { wpx: 180 },  // C: Outlet Name
             { wpx: 120 },  // D: Outlet Code
             { wpx: 180 },  // E: Campaign Name
-            { wpx: 150 },  // F: Organization Name
-            { wpx: 100 },  // G: Type
-            { wpx: 120 },  // H: Budget (TCA)
-            { wpx: 100 },  // I: Paid
-            { wpx: 100 },  // J: Pending
-            { wpx: 100 },  // K: Amount
-            { wpx: 110 },  // L: Date
-            { wpx: 120 },  // M: UTR Number
-            { wpx: 120 }   // N: Remarks
+            { wpx: 150 },  // F: Client
+            { wpx: 160 },  // G: Total Campaign Amount
+            { wpx: 120 },  // H: Paid
+            { wpx: 120 },  // I: Balance
+            { wpx: 100 },  // J: Date
+            { wpx: 120 },  // K: UTR Number
+            { wpx: 120 }   // L: Remarks
         ];
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Passbook");
 
-        XLSX.writeFile(
-            wb,
-            `Employee_Passbook_${new Date().toISOString().split('T')[0]}.xlsx`
-        );
+        const fileName = `Employee_Passbook_${new Date().toISOString().split('T')[0]}.xlsx`;
+        XLSX.writeFile(wb, fileName);
 
         toast.success("Passbook downloaded successfully!", { theme: "dark" });
     };
 
+    // ===============================
+    // PAGINATION FUNCTIONS
+    // ===============================
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+    };
+
+    const getPageNumbers = () => {
+        const pageNumbers = [];
+        const maxPagesToShow = 5;
+
+        if (totalPages <= maxPagesToShow) {
+            for (let i = 1; i <= totalPages; i++) {
+                pageNumbers.push(i);
+            }
+        } else {
+            if (currentPage <= 3) {
+                for (let i = 1; i <= 4; i++) {
+                    pageNumbers.push(i);
+                }
+                pageNumbers.push("...");
+                pageNumbers.push(totalPages);
+            } else if (currentPage >= totalPages - 2) {
+                pageNumbers.push(1);
+                pageNumbers.push("...");
+                for (let i = totalPages - 3; i <= totalPages; i++) {
+                    pageNumbers.push(i);
+                }
+            } else {
+                pageNumbers.push(1);
+                pageNumbers.push("...");
+                pageNumbers.push(currentPage - 1);
+                pageNumbers.push(currentPage);
+                pageNumbers.push(currentPage + 1);
+                pageNumbers.push("...");
+                pageNumbers.push(totalPages);
+            }
+        }
+
+        return pageNumbers;
+    };
+
+    // ===============================
+    // HANDLE FILTER CHANGES
+    // ===============================
+    const handleRetailerChange = (selected) => {
+        setSelectedRetailers(selected || []);
+    };
+
+    const handleCampaignChange = (selected) => {
+        setSelectedCampaigns(selected || []);
+    };
+
+    const handleClearAllFilters = () => {
+        setSelectedRetailers([]);
+        setSelectedCampaigns([]);
+        setFromDate("");
+        setToDate("");
+    };
+
     return (
         <>
-            <ToastContainer position="top-right" autoClose={3000} />
+            <ToastContainer position="top-right" autoClose={1000} />
             <div className="min-h-screen bg-[#171717] p-6">
                 <div className="max-w-7xl mx-auto">
-                    <h1 className="text-3xl font-bold text-[#E4002B] mb-8">
-                        Employee Passbook
-                    </h1>
+                    <div className="flex justify-between items-center mb-8">
+                        <h1 className="text-3xl font-bold text-[#E4002B]">
+                            Employee Passbook
+                        </h1>
+
+                        {/* ✅ Download Button */}
+                        {allDisplayData.length > 0 && (
+                            <button
+                                onClick={handleDownloadPassbook}
+                                className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2 cursor-pointer"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Download Passbook
+                            </button>
+                        )}
+                    </div>
 
                     {loading ? (
                         <div className="bg-[#EDEDED] rounded-lg shadow-md p-6">
@@ -559,44 +672,37 @@ const EmployeePassbook = () => {
                                 </h2>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    {/* Retailer Filter (Required) */}
+                                    {/* Retailer Filter (Multi-select) */}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Retailer *
+                                            Retailers (Optional)
                                         </label>
                                         <Select
-                                            value={selectedRetailer}
-                                            onChange={(selected) => {
-                                                setSelectedRetailer(selected);
-                                                setSelectedCampaign(null);
-                                            }}
+                                            isMulti
+                                            value={selectedRetailers}
+                                            onChange={handleRetailerChange}
                                             options={retailerOptions}
                                             styles={customSelectStyles}
-                                            placeholder="Select Retailer"
-                                            isClearable
+                                            placeholder="All Retailers"
                                             isSearchable
+                                            isClearable
                                         />
-                                        {retailerOptions.length === 0 && (
-                                            <p className="text-xs text-gray-500 mt-1">
-                                                No retailers assigned to you
-                                            </p>
-                                        )}
                                     </div>
 
-                                    {/* Campaign Filter (Optional) */}
+                                    {/* Campaign Filter (Multi-select) */}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Campaign (Optional)
+                                            Campaigns (Optional)
                                         </label>
                                         <Select
-                                            value={selectedCampaign}
-                                            onChange={setSelectedCampaign}
+                                            isMulti
+                                            value={selectedCampaigns}
+                                            onChange={handleCampaignChange}
                                             options={campaignOptions}
                                             styles={customSelectStyles}
                                             placeholder="All Campaigns"
-                                            isClearable
                                             isSearchable
-                                            isDisabled={!selectedRetailer}
+                                            isClearable
                                         />
                                     </div>
 
@@ -609,8 +715,7 @@ const EmployeePassbook = () => {
                                             type="date"
                                             value={fromDate}
                                             onChange={(e) => setFromDate(e.target.value)}
-                                            disabled={!selectedRetailer}
-                                            className="w-full px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-red-600 focus:outline-none disabled:bg-gray-100"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E4002B] focus:border-transparent"
                                         />
                                     </div>
 
@@ -623,181 +728,217 @@ const EmployeePassbook = () => {
                                             type="date"
                                             value={toDate}
                                             onChange={(e) => setToDate(e.target.value)}
-                                            disabled={!selectedRetailer}
-                                            className="w-full px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-red-600 focus:outline-none disabled:bg-gray-100"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E4002B] focus:border-transparent"
                                         />
                                     </div>
                                 </div>
 
-                                {(selectedRetailer || selectedCampaign || fromDate || toDate) && (
-                                    <button
-                                        onClick={handleClearFilters}
-                                        className="mt-4 text-sm text-red-600 underline hover:text-red-800"
-                                    >
-                                        Clear All Filters
-                                    </button>
-                                )}
+                                {(selectedRetailers.length > 0 ||
+                                    selectedCampaigns.length > 0 ||
+                                    fromDate ||
+                                    toDate) && (
+                                        <button
+                                            onClick={handleClearAllFilters}
+                                            className="mt-4 text-sm text-red-600 underline hover:text-red-800"
+                                        >
+                                            Clear All Filters
+                                        </button>
+                                    )}
                             </div>
 
-                            {/* Retailer Summary */}
-                            {passbookData && (
-                                <div className="bg-[#EDEDED] rounded-lg shadow-md p-6 mb-6">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h2 className="text-lg font-semibold text-gray-700">
-                                            Summary {(selectedCampaign || fromDate || toDate) && "(Filtered)"}
-                                        </h2>
-                                        <button
-                                            onClick={handleDownloadPassbook}
-                                            className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
-                                        >
-                                            Download Passbook
-                                        </button>
-                                    </div>
+                            {/* Summary Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                {/* Total Budget Card */}
+                                <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+                                    <p className="text-sm font-medium opacity-90">Total Budget</p>
+                                    <h3 className="text-3xl font-bold mt-2">
+                                        ₹{cardTotals.totalBudget.toLocaleString()}
+                                    </h3>
+                                </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-4">
-                                        <p><strong>Outlet Code:</strong> {passbookData.outletCode}</p>
-                                        <p><strong>Shop Name:</strong> {passbookData.shopName}</p>
-                                        <p><strong>State:</strong> {passbookData.state}</p>
-                                        <p><strong>Retailer Name:</strong> {passbookData.retailerName}</p>
-                                    </div>
+                                {/* Total Paid Amount Card */}
+                                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
+                                    <p className="text-sm font-medium opacity-90">Total Paid Amount</p>
+                                    <h3 className="text-3xl font-bold mt-2">
+                                        ₹{cardTotals.totalSpending.toLocaleString()}
+                                    </h3>
+                                </div>
 
-                                    {/* Show filtered summary if filters are active */}
-                                    {(selectedCampaign || fromDate || toDate) ? (
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div className="bg-blue-50 p-4 rounded-lg">
-                                                <p className="text-sm text-gray-600">Filtered Total Budget</p>
-                                                <p className="text-2xl font-bold text-blue-600">
-                                                    ₹{getFilteredSummary().filteredTAR}
-                                                </p>
-                                            </div>
-                                            <div className="bg-green-50 p-4 rounded-lg">
-                                                <p className="text-sm text-gray-600">Filtered Total Paid</p>
-                                                <p className="text-2xl font-bold text-green-600">
-                                                    ₹{getFilteredSummary().filteredTAPaid}
-                                                </p>
-                                            </div>
-                                            <div className="bg-yellow-50 p-4 rounded-lg">
-                                                <p className="text-sm text-gray-600">Filtered Total Pending</p>
-                                                <p className="text-2xl font-bold text-yellow-600">
-                                                    ₹{getFilteredSummary().filteredTAPending}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div className="bg-blue-50 p-4 rounded-lg">
-                                                <p className="text-sm text-gray-600">Total Budget (Assigned Campaigns)</p>
-                                                <p className="text-2xl font-bold text-blue-600">
-                                                    ₹{getFilteredSummary().filteredTAR}
-                                                </p>
-                                            </div>
-                                            <div className="bg-green-50 p-4 rounded-lg">
-                                                <p className="text-sm text-gray-600">Total Paid</p>
-                                                <p className="text-2xl font-bold text-green-600">
-                                                    ₹{getFilteredSummary().filteredTAPaid}
-                                                </p>
-                                            </div>
-                                            <div className="bg-yellow-50 p-4 rounded-lg">
-                                                <p className="text-sm text-gray-600">Total Pending</p>
-                                                <p className="text-2xl font-bold text-yellow-600">
-                                                    ₹{getFilteredSummary().filteredTAPending}
-                                                </p>
-                                            </div>
+                                {/* Total Pending Amount Card */}
+                                <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg shadow-lg p-6 text-white">
+                                    <p className="text-sm font-medium opacity-90">Total Pending Amount</p>
+                                    <h3 className="text-3xl font-bold mt-2">
+                                        ₹{cardTotals.totalPending.toLocaleString()}
+                                    </h3>
+                                </div>
+                            </div>
+
+                            {/* Passbook Table */}
+                            <div className="bg-[#EDEDED] rounded-lg shadow-md p-6">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
+                                    <h2 className="text-lg font-semibold text-gray-700">
+                                        Passbook Records ({totalRecords})
+                                    </h2>
+                                    {totalRecords > 0 && (
+                                        <div className="text-sm text-gray-600">
+                                            Showing {(currentPage - 1) * limit + 1} to{" "}
+                                            {Math.min(currentPage * limit, totalRecords)} of{" "}
+                                            {totalRecords} records
                                         </div>
                                     )}
                                 </div>
-                            )}
 
-                            {/* Campaign-wise Details */}
-                            {displayedCampaigns.length > 0 && displayedCampaigns.map((campaign) => (
-                                <div key={campaign._id} className="bg-[#EDEDED] rounded-lg shadow-md p-6 mb-6">
-                                    <h3 className="text-lg font-semibold mb-3 text-gray-700">
-                                        {campaign.campaignName}
-                                    </h3>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-4">
-                                        <p><strong>Organization Name:</strong> {campaign.campaignId?.client || "N/A"}</p>
-                                        <p><strong>Type:</strong> {campaign.campaignId?.type || "N/A"}</p>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                        <div className="bg-blue-50 p-3 rounded-lg">
-                                            <p className="text-xs text-gray-600">Campaign Budget (TCA)</p>
-                                            <p className="text-xl font-bold text-blue-600">
-                                                ₹{campaign.tca || 0}
-                                            </p>
-                                        </div>
-                                        <div className="bg-green-50 p-3 rounded-lg">
-                                            <p className="text-xs text-gray-600">Paid</p>
-                                            <p className="text-xl font-bold text-green-600">
-                                                ₹{campaign.cPaid || 0}
-                                            </p>
-                                        </div>
-                                        <div className="bg-yellow-50 p-3 rounded-lg">
-                                            <p className="text-xs text-gray-600">Pending</p>
-                                            <p className="text-xl font-bold text-yellow-600">
-                                                ₹{campaign.cPending || 0}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {/* Installments Table */}
-                                    {campaign.installments && campaign.installments.length > 0 ? (
+                                {displayData.length > 0 ? (
+                                    <>
                                         <div className="overflow-x-auto">
-                                            <h4 className="text-sm font-semibold mb-2 text-gray-700">Installments</h4>
                                             <table className="min-w-full divide-y divide-gray-200">
                                                 <thead className="bg-gray-100">
                                                     <tr>
-                                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">#</th>
-                                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Amount</th>
-                                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Date</th>
-                                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">UTR Number</th>
-                                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Remarks</th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                                                            S.No
+                                                        </th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                                                            State
+                                                        </th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                                                            Outlet Details
+                                                        </th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                                                            Campaign Name
+                                                        </th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                                                            Client
+                                                        </th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                                                            Total Campaign Amount
+                                                        </th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                                                            Paid
+                                                        </th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                                                            Pending
+                                                        </th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                                                            Last Payment Date
+                                                        </th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="bg-white divide-y divide-gray-200">
-                                                    {campaign.installments.map((inst) => (
-                                                        <tr key={inst._id} className="hover:bg-gray-50">
-                                                            <td className="px-4 py-2 text-sm">{inst.installmentNo}</td>
-                                                            <td className="px-4 py-2 text-sm font-semibold text-gray-700">
-                                                                ₹{inst.installmentAmount}
+                                                    {displayData.map((record, index) => (
+                                                        <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                                            <td className="px-4 py-3 text-sm text-gray-700">
+                                                                {(currentPage - 1) * limit + index + 1}
                                                             </td>
-                                                            <td className="px-4 py-2 text-sm text-gray-600">
-                                                                {inst.dateOfInstallment}
+                                                            <td className="px-4 py-3 text-sm text-gray-600">
+                                                                {record.state}
                                                             </td>
-                                                            <td className="px-4 py-2 text-sm text-gray-600">{inst.utrNumber}</td>
-                                                            <td className="px-4 py-2 text-sm text-gray-600">{inst.remarks || "-"}</td>
+                                                            <td className="px-4 py-3 text-sm">
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-medium text-gray-700">
+                                                                        {record.shopName}
+                                                                    </span>
+                                                                    <span className="text-xs text-gray-500 font-mono mt-1">
+                                                                        {record.outletCode}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-sm text-gray-600">
+                                                                {record.campaignName}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-sm text-gray-600">
+                                                                {record.client}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-sm font-semibold text-blue-600">
+                                                                ₹{record.tca.toLocaleString()}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-sm font-semibold text-green-600">
+                                                                ₹{record.cPaid.toLocaleString()}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-sm font-semibold text-yellow-600">
+                                                                ₹{record.cPending.toLocaleString()}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-sm text-gray-700">
+                                                                {formatDateToDDMMYYYY(record.lastPaymentDate)}
+                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
                                             </table>
                                         </div>
-                                    ) : (
-                                        <p className="text-sm text-gray-500 py-2">No installments in this date range.</p>
-                                    )}
-                                </div>
-                            ))}
 
-                            {!selectedRetailer && (
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                                    <p className="font-semibold">Select a Retailer</p>
-                                    <p>Please select a retailer to view passbook data.</p>
-                                </div>
-                            )}
+                                        {/* Pagination */}
+                                        {totalPages > 1 && (
+                                            <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
+                                                <div className="text-sm text-gray-600">
+                                                    Page {currentPage} of {totalPages}
+                                                </div>
 
-                            {selectedRetailer && !passbookData && (
-                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
-                                    <p className="font-semibold">No Passbook Data Found</p>
-                                    <p>No budget or payment records exist for this retailer.</p>
-                                </div>
-                            )}
+                                                <div className="flex items-center gap-2 flex-wrap justify-center">
+                                                    <button
+                                                        onClick={() => handlePageChange(1)}
+                                                        disabled={currentPage === 1}
+                                                        className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                                                    >
+                                                        First
+                                                    </button>
 
-                            {passbookData && displayedCampaigns.length === 0 && (
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                                    <p className="font-semibold">No Data for Selected Filters</p>
-                                    <p>Try adjusting the campaign or date range filters.</p>
-                                </div>
-                            )}
+                                                    <button
+                                                        onClick={() => handlePageChange(currentPage - 1)}
+                                                        disabled={currentPage === 1}
+                                                        className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                                                    >
+                                                        Previous
+                                                    </button>
+
+                                                    <div className="flex gap-1">
+                                                        {getPageNumbers().map((pageNum, idx) =>
+                                                            pageNum === "..." ? (
+                                                                <span
+                                                                    key={`ellipsis-${idx}`}
+                                                                    className="px-3 py-2 text-gray-500"
+                                                                >
+                                                                    ...
+                                                                </span>
+                                                            ) : (
+                                                                <button
+                                                                    key={pageNum}
+                                                                    onClick={() => handlePageChange(pageNum)}
+                                                                    className={`px-3 py-2 rounded text-sm ${currentPage === pageNum
+                                                                        ? "bg-[#E4002B] text-white"
+                                                                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                                                                        }`}
+                                                                >
+                                                                    {pageNum}
+                                                                </button>
+                                                            )
+                                                        )}
+                                                    </div>
+
+                                                    <button
+                                                        onClick={() => handlePageChange(currentPage + 1)}
+                                                        disabled={currentPage === totalPages}
+                                                        className="px-3 py-2 bg-[#E4002B] text-white rounded hover:bg-[#C3002B] disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                                                    >
+                                                        Next
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => handlePageChange(totalPages)}
+                                                        disabled={currentPage === totalPages}
+                                                        className="px-3 py-2 bg-[#E4002B] text-white rounded hover:bg-[#C3002B] disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                                                    >
+                                                        Last
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <p className="text-gray-500 py-4 text-center">
+                                        No records found for the selected filters.
+                                    </p>
+                                )}
+                            </div>
                         </>
                     )}
                 </div>

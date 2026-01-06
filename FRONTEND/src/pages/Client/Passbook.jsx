@@ -386,7 +386,7 @@ const ClientPassbook = () => {
     // Row 1: Title
     rows.push({
       A: "CLIENT PASSBOOK REPORT",
-      B: "", C: "", D: "", E: "", F: "", G: "", H: "", I: "", J: "", K: "", L: ""
+      B: "", C: "", D: "", E: "", F: "", G: "", H: "", I: "", J: "", K: ""
     });
 
     // Row 2: Empty
@@ -400,19 +400,19 @@ const ClientPassbook = () => {
       A: "Total Budget",
       B: `₹${cardTotals.totalBudget.toLocaleString()}`,
       C: "",
-      D: "Total Paid Amount",
+      D: "Total Paid",
       E: `₹${cardTotals.totalSpending.toLocaleString()}`,
       F: "",
-      G: "Total Pending Amount",
+      G: "Total Balance",
       H: `₹${cardTotals.totalPending.toLocaleString()}`,
-      I: "", J: "", K: "", L: ""
+      I: "", J: "", K: ""
     });
 
     // Row 5 & 6: Empty rows
     rows.push({});
     rows.push({});
 
-    // Row 7: Header (includes installment columns)
+    // Row 7: Header
     rows.push({
       A: "S.No",
       B: "State",
@@ -421,51 +421,62 @@ const ClientPassbook = () => {
       E: "Campaign Name",
       F: "Total Campaign Amount",
       G: "Paid",
-      H: "Pending",
-      I: "Amount",
-      J: "Date",
-      K: "UTR Number",
-      L: "Remarks"
+      H: "Balance",
+      I: "Date",
+      J: "UTR Number",
+      K: "Remarks"
     });
 
-    // ✅ Data rows with continuous S.No
-    let serialNumber = 1; // Start continuous numbering
+    // ✅ Data rows with continuous S.No and running balance calculation
+    let serialNumber = 1;
 
     allDisplayData.forEach((record) => {
       const installments = record.installments || [];
+      const totalBudget = record.tca;
 
       if (installments.length === 0) {
-        // No installments - single row
+        // ✅ No installments - show "-" for empty fields
         rows.push({
-          A: serialNumber++,  // ✅ Continuous S.No: 1, 2, 3, 4...
+          A: serialNumber++,
           B: record.state,
           C: record.shopName,
           D: record.outletCode,
           E: record.campaignName,
-          F: record.tca,
-          G: record.cPaid,
-          H: record.cPending,
-          I: "",
-          J: "",
-          K: "",
-          L: ""
+          F: totalBudget,
+          G: "-",        // ✅ No payment made
+          H: totalBudget, // Full balance remaining
+          I: "-",        // ✅ No date
+          J: "-",        // ✅ No UTR
+          K: "-"         // ✅ No remarks
         });
       } else {
-        // Has installments - each installment gets its own S.No
-        installments.forEach((inst) => {
+        // ✅ Has installments - Calculate running balance
+        let cumulativePaid = 0;
+
+        // Sort installments by date (oldest first) for proper balance calculation
+        const sortedInstallments = [...installments].sort((a, b) => {
+          const dateA = parseDate(a.dateOfInstallment);
+          const dateB = parseDate(b.dateOfInstallment);
+          return dateA - dateB; // Ascending order
+        });
+
+        sortedInstallments.forEach((inst) => {
+          const paidAmount = inst.installmentAmount || 0;
+          cumulativePaid += paidAmount;
+          const balance = totalBudget - cumulativePaid;
+
           rows.push({
-            A: serialNumber++,  // ✅ Continuous S.No: 1, 2, 3, 4, 5...
+            A: serialNumber++,
             B: record.state,
             C: record.shopName,
             D: record.outletCode,
             E: record.campaignName,
-            F: record.tca,
-            G: record.cPaid,
-            H: record.cPending,
-            I: inst.installmentAmount,
-            J: formatDateToDDMMYYYY(inst.dateOfInstallment),
-            K: inst.utrNumber,
-            L: inst.remarks || "-"
+            F: totalBudget,
+            G: paidAmount,                              // Amount paid in THIS installment
+            H: balance,                                  // Balance AFTER this payment
+            I: formatDateToDDMMYYYY(inst.dateOfInstallment),
+            J: inst.utrNumber || "-",                    // ✅ UTR or "-"
+            K: inst.remarks || "-"                       // ✅ Remarks or "-"
           });
         });
       }
@@ -508,27 +519,26 @@ const ClientPassbook = () => {
       }
     }
 
-    // Merge cells for title (Row 1, A1:L1)
+    // Merge cells for title (Row 1, A1:K1)
     if (!ws['!merges']) ws['!merges'] = [];
     ws['!merges'].push({
       s: { r: 0, c: 0 },
-      e: { r: 0, c: 11 }
+      e: { r: 0, c: 10 }
     });
 
     // Column widths
     ws["!cols"] = [
-      { wpx: 200 },  // A: S.No
+      { wpx: 60 },   // A: S.No
       { wpx: 120 },  // B: State
       { wpx: 180 },  // C: Outlet Name
       { wpx: 120 },  // D: Outlet Code
       { wpx: 180 },  // E: Campaign Name
-      { wpx: 140 },  // F: Total Campaign Amount
-      { wpx: 150 },  // G: Paid
-      { wpx: 100 },  // H: Pending
-      { wpx: 120 },  // I: Amount
-      { wpx: 100 },   // J: Date
-      { wpx: 120 },   // K: UTR Number
-      { wpx: 120 }    // L: Remarks
+      { wpx: 160 },  // F: Total Campaign Amount
+      { wpx: 120 },  // G: Paid
+      { wpx: 120 },  // H: Balance
+      { wpx: 100 },  // I: Date
+      { wpx: 120 },  // J: UTR Number
+      { wpx: 120 }   // K: Remarks
     ];
 
     const wb = XLSX.utils.book_new();
