@@ -143,44 +143,71 @@ export const uploadToCloudinaryWithDetailsOverlay = async (
                 folder,
                 resource_type: "image",
                 context,
-                // ✅ ULTRA-SIMPLE: Text only, no background
+                // ✅ Text with stroke for visibility on any background
                 transformation: [
+                    // Line 1: Coordinates with black stroke
+                    {
+                        overlay: {
+                            font_family: "Arial",
+                            font_size: 28,
+                            font_weight: "bold",
+                            text: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+                        },
+                        gravity: "south",
+                        y: 70,
+                        color: "black",
+                    },
+                    {
+                        overlay: {
+                            font_family: "Arial",
+                            font_size: 28,
+                            font_weight: "bold",
+                            text: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+                        },
+                        gravity: "south",
+                        y: 72,
+                        color: "white",
+                    },
+                    // Line 2: Place name with black stroke
                     {
                         overlay: {
                             font_family: "Arial",
                             font_size: 20,
-                            font_weight: "bold",
-                            text: encodeURIComponent(
-                                `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`
-                            ),
+                            text: placeText,
                         },
-                        gravity: "south_east",
-                        x: -20,
-                        y: -20,
-                        color: "white",
+                        gravity: "south",
+                        y: 42,
+                        color: "black",
                     },
                     {
                         overlay: {
                             font_family: "Arial",
-                            font_size: 16,
-                            text: encodeURIComponent(
-                                `${placeName.substring(0, 30)}`
-                            ),
+                            font_size: 20,
+                            text: placeText,
                         },
-                        gravity: "south_east",
-                        x: -20,
-                        y: -50,
+                        gravity: "south",
+                        y: 44,
                         color: "white",
+                    },
+                    // Line 3: Date/time with black stroke
+                    {
+                        overlay: {
+                            font_family: "Arial",
+                            font_size: 18,
+                            text: dateText,
+                        },
+                        gravity: "south",
+                        y: 14,
+                        color: "black",
                     },
                     {
                         overlay: {
                             font_family: "Arial",
-                            font_size: 14,
-                            text: encodeURIComponent(captureDate),
+                            font_size: 18,
+                            text: dateText,
                         },
-                        gravity: "south_east",
-                        x: -20,
-                        y: -75,
+                        gravity: "south",
+                        y: 16,
                         color: "white",
                     },
                 ],
