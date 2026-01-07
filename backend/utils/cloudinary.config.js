@@ -78,19 +78,31 @@ export const uploadToCloudinaryWithDetailsOverlay = async (
         throw new Error("Empty buffer provided");
     }
 
+    console.log("📸 uploadToCloudinaryWithDetailsOverlay called with:", {
+        bufferSize: buffer.length,
+        folder,
+        geotag,
+    });
+
     // Safe property access
     const lat = Number(geotag.latitude) || 0;
     const lng = Number(geotag.longitude) || 0;
     const timestamp = geotag.timestamp || new Date().toISOString();
 
+    console.log("🔢 Parsed coordinates:", { lat, lng, timestamp });
+
     // Get place name
     let placeName = "Location Unavailable";
     if (lat !== 0 && lng !== 0) {
         try {
+            console.log(`🌍 Fetching place name for: ${lat}, ${lng}`);
             placeName = await getPlaceNameFromCoords(lat, lng);
+            console.log(`✅ Place name retrieved: ${placeName}`);
         } catch (error) {
-            console.error("Place lookup failed:", error);
+            console.error("❌ Place lookup failed:", error);
         }
+    } else {
+        console.log("⚠️ Skipping place lookup - coordinates are zero");
     }
 
     // Format date/time
@@ -102,6 +114,8 @@ export const uploadToCloudinaryWithDetailsOverlay = async (
         minute: "2-digit",
     });
 
+    console.log("📅 Formatted capture date:", captureDate);
+
     // Context metadata
     const context = {
         geotag_latitude: lat.toString(),
@@ -109,6 +123,19 @@ export const uploadToCloudinaryWithDetailsOverlay = async (
         geotag_place: placeName,
         geotag_timestamp: timestamp,
     };
+
+    console.log("📋 Cloudinary context metadata:", context);
+
+    // Build transformation text overlays
+    const coordsText = `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    const placeText = placeName.substring(0, 30);
+    const dateText = captureDate;
+
+    console.log("🎨 Text overlays to be applied:", {
+        coordsText,
+        placeText,
+        dateText,
+    });
 
     return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(

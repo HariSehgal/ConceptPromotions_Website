@@ -516,6 +516,15 @@ export const createReportWithGeotags = async (req, res) => {
 
                 const uploadedImages = [];
 
+                // ✅ DEBUG: Log all body keys to find geotag metadata
+                console.log("🔍 All req.body keys:", Object.keys(req.body));
+                console.log("🔍 Looking for shopDisplayImageMetadata keys...");
+                Object.keys(req.body).forEach((key) => {
+                    if (key.includes("shopDisplayImageMetadata")) {
+                        console.log(`   Found: ${key} = ${req.body[key]}`);
+                    }
+                });
+
                 for (let i = 0; i < images.length; i++) {
                     const file = images[i];
 
@@ -529,6 +538,9 @@ export const createReportWithGeotags = async (req, res) => {
 
                     // Get geotag metadata
                     const metadataKey = `shopDisplayImageMetadata[${i}]`;
+                    console.log(`🔍 Looking for metadata key: "${metadataKey}"`);
+                    console.log(`🔍 Value found: ${req.body[metadataKey]}`);
+
                     let geotag = {
                         latitude: 0,
                         longitude: 0,
@@ -554,6 +566,8 @@ export const createReportWithGeotags = async (req, res) => {
                             geotag.timestamp =
                                 parsedGeotag.timestamp ||
                                 new Date().toISOString();
+
+                            console.log(`✅ Final geotag object for image ${i}:`, geotag);
                         } catch (e) {
                             console.log(
                                 `⚠️ Invalid metadata for image ${i}:`,
@@ -561,7 +575,15 @@ export const createReportWithGeotags = async (req, res) => {
                             );
                             geotag = { latitude: 0, longitude: 0 }; // Default fallback
                         }
+                    } else {
+                        console.log(`⚠️ No metadata found for key: "${metadataKey}"`);
                     }
+
+                    console.log(`🚀 Uploading image ${i + 1} with geotag:`, {
+                        lat: geotag.latitude,
+                        lng: geotag.longitude,
+                        hasCoords: geotag.latitude !== 0 && geotag.longitude !== 0
+                    });
 
                     try {
                         // ✅ Upload with full details overlay
@@ -590,9 +612,10 @@ export const createReportWithGeotags = async (req, res) => {
                         });
 
                         console.log(
-                            `✅ Image ${i + 1} with full geotag overlay:`,
+                            `✅ Image ${i + 1} uploaded successfully:`,
                             result.secure_url
                         );
+                        console.log(`   Cloudinary context:`, result.context);
                     } catch (err) {
                         console.error(`❌ Image ${i + 1} failed:`, err.message);
                         return res.status(500).json({
