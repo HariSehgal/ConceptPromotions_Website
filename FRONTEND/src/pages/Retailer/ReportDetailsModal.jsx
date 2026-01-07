@@ -3,8 +3,10 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "react-toastify";
 
+
 const ReportDetailsModal = ({ report, onClose }) => {
     if (!report) return null;
+
 
     const formatDate = (dateString) => {
         if (!dateString) return "N/A";
@@ -21,30 +23,37 @@ const ReportDetailsModal = ({ report, onClose }) => {
         }
     };
 
-    const bufferToBase64 = (buffer, contentType) => {
-        if (!buffer || !buffer.data) return null;
-        try {
-            if (buffer.type === "Buffer" && Array.isArray(buffer.data)) {
-                const base64 = btoa(
-                    buffer.data.reduce(
-                        (data, byte) => data + String.fromCharCode(byte),
-                        ""
-                    )
-                );
-                return `data:${contentType || "image/jpeg"};base64,${base64}`;
-            }
-            return null;
-        } catch (error) {
-            console.error("Error converting buffer to base64:", error);
-            return null;
-        }
-    };
 
-    // ✅ PDF DOWNLOAD FUNCTION WITH IMAGES
+    // ✅ UPDATED: Handle both Cloudinary URLs and legacy Buffer data
+   const getImageSource = (imageData) => {
+    if (!imageData) return null;
+    
+    // If it's a Cloudinary URL (string), return directly
+    if (typeof imageData === 'string') {
+        return imageData;
+    }
+    
+    // If it's an object with secure_url (Cloudinary format)
+    if (imageData.secure_url) {
+        return imageData.secure_url;
+    }
+    
+    // If it's an object with url property
+    if (imageData.url) {
+        return imageData.url;
+    }
+    
+    // Not a Cloudinary format - return null
+    return null;
+};
+
+
+    // ✅ UPDATED: PDF Download with Cloudinary support
     const handleDownloadPDF = async () => {
         try {
             const doc = new jsPDF();
             let yPosition = 20;
+
 
             // Title
             doc.setFontSize(18);
@@ -52,11 +61,13 @@ const ReportDetailsModal = ({ report, onClose }) => {
             doc.text("REPORT DETAILS", 105, yPosition, { align: "center" });
             yPosition += 15;
 
+
             // Basic Information
             doc.setFontSize(14);
             doc.setTextColor(0, 0, 0);
             doc.text("Basic Information", 15, yPosition);
             yPosition += 8;
+
 
             const basicInfoData = [
                 ['Report Type', report.reportType || 'N/A'],
@@ -64,6 +75,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 ['Date of Submission', formatDate(report.dateOfSubmission || report.createdAt)],
                 ['Submitted By', report.submittedBy?.role || 'N/A'],
             ];
+
 
             autoTable(doc, {
                 startY: yPosition,
@@ -74,12 +86,15 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 margin: { left: 15, right: 15 },
             });
 
+
             yPosition = doc.lastAutoTable.finalY + 10;
+
 
             // Campaign Information
             doc.setFontSize(14);
             doc.text("Campaign Information", 15, yPosition);
             yPosition += 8;
+
 
             autoTable(doc, {
                 startY: yPosition,
@@ -94,7 +109,9 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 margin: { left: 15, right: 15 },
             });
 
+
             yPosition = doc.lastAutoTable.finalY + 10;
+
 
             // Employee Information
             if (report.employee?.employeeId) {
@@ -102,14 +119,17 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 doc.text("Employee Information", 15, yPosition);
                 yPosition += 8;
 
+
                 const employeeData = [
                     ['Employee Name', report.employee.employeeId.name || 'N/A'],
                     ['Employee Code', report.employee.employeeId.employeeId || 'N/A'],
                 ];
 
+
                 if (report.employee.employeeId.phone) {
                     employeeData.push(['Contact', report.employee.employeeId.phone]);
                 }
+
 
                 autoTable(doc, {
                     startY: yPosition,
@@ -120,8 +140,10 @@ const ReportDetailsModal = ({ report, onClose }) => {
                     margin: { left: 15, right: 15 },
                 });
 
+
                 yPosition = doc.lastAutoTable.finalY + 10;
             }
+
 
             // Visit Details (if submitted by employee)
             if (report.submittedBy?.role === "Employee") {
@@ -129,10 +151,12 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 doc.text("Visit Details", 15, yPosition);
                 yPosition += 8;
 
+
                 const visitData = [
                     ['Type of Visit', report.typeOfVisit || 'N/A'],
                     ['Attendance Status', report.attendedVisit === "yes" ? "Attended" : "Not Attended"],
                 ];
+
 
                 if (report.attendedVisit === "no" && report.reasonForNonAttendance) {
                     visitData.push(['Reason', report.reasonForNonAttendance.reason || 'N/A']);
@@ -140,6 +164,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                         visitData.push(['Additional Details', report.reasonForNonAttendance.otherReason]);
                     }
                 }
+
 
                 autoTable(doc, {
                     startY: yPosition,
@@ -150,16 +175,20 @@ const ReportDetailsModal = ({ report, onClose }) => {
                     margin: { left: 15, right: 15 },
                 });
 
+
                 yPosition = doc.lastAutoTable.finalY + 10;
             }
+
 
             // Product/Stock Information
             if (report.reportType === "Stock" &&
                 (report.brand || report.product || report.sku || report.stockType)) {
 
+
                 doc.setFontSize(14);
                 doc.text("Product/Stock Information", 15, yPosition);
                 yPosition += 8;
+
 
                 const stockData = [];
                 if (report.stockType) stockData.push(['Stock Type', report.stockType]);
@@ -168,6 +197,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 if (report.sku) stockData.push(['SKU', report.sku]);
                 if (report.productType) stockData.push(['Product Type', report.productType]);
                 if (report.quantity) stockData.push(['Quantity', report.quantity]);
+
 
                 autoTable(doc, {
                     startY: yPosition,
@@ -178,8 +208,10 @@ const ReportDetailsModal = ({ report, onClose }) => {
                     margin: { left: 15, right: 15 },
                 });
 
+
                 yPosition = doc.lastAutoTable.finalY + 10;
             }
+
 
             // Remarks
             if (report.remarks) {
@@ -187,13 +219,15 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 doc.text("Remarks", 15, yPosition);
                 yPosition += 8;
 
+
                 doc.setFontSize(11);
                 const remarksLines = doc.splitTextToSize(report.remarks, 180);
                 doc.text(remarksLines, 15, yPosition);
                 yPosition += remarksLines.length * 7 + 10;
             }
 
-            // ✅ ADD SHOP DISPLAY IMAGES
+
+            // ✅ UPDATED: Shop Display Images (Cloudinary URLs)
             if (report.reportType === "Window Display" &&
                 report.shopDisplayImages && 
                 report.shopDisplayImages.length > 0) {
@@ -201,23 +235,39 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 doc.addPage();
                 yPosition = 20;
 
+
                 doc.setFontSize(14);
                 doc.setTextColor(0, 0, 0);
                 doc.text("Shop Display Images", 15, yPosition);
                 yPosition += 10;
 
-                for (let i = 0; i < report.shopDisplayImages.length; i++) {
-                    const img = report.shopDisplayImages[i];
-                    const imageSource = bufferToBase64(img.data, img.contentType);
 
-                    if (imageSource) {
+                for (let i = 0; i < report.shopDisplayImages.length; i++) {
+                    const imageUrl = getImageSource(report.shopDisplayImages[i]);
+
+
+                    if (imageUrl) {
                         if (i > 0 && i % 2 === 0) {
                             doc.addPage();
                             yPosition = 20;
                         }
 
+
                         try {
-                            doc.addImage(imageSource, 'JPEG', 15, yPosition, 180, 120);
+                            // For Cloudinary URLs, fetch and convert to base64
+                            if (imageUrl.startsWith('http')) {
+                                const response = await fetch(imageUrl);
+                                const blob = await response.blob();
+                                const base64 = await new Promise((resolve) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => resolve(reader.result);
+                                    reader.readAsDataURL(blob);
+                                });
+                                doc.addImage(base64, 'JPEG', 15, yPosition, 180, 120);
+                            } else {
+                                doc.addImage(imageUrl, 'JPEG', 15, yPosition, 180, 120);
+                            }
+                            
                             doc.setFontSize(10);
                             doc.text(`Image ${i + 1}`, 15, yPosition + 125);
                             yPosition += 135;
@@ -228,7 +278,8 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 }
             }
 
-            // ✅ ADD BILL COPIES
+
+            // ✅ UPDATED: Bill Copies (Cloudinary URLs)
             if (report.reportType === "Stock" &&
                 report.billCopies && 
                 report.billCopies.length > 0) {
@@ -236,25 +287,41 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 doc.addPage();
                 yPosition = 20;
 
+
                 doc.setFontSize(14);
                 doc.setTextColor(0, 0, 0);
                 doc.text("Bill Copies", 15, yPosition);
                 yPosition += 10;
 
-                for (let i = 0; i < report.billCopies.length; i++) {
-                    const bill = report.billCopies[i];
-                    const imageSource = bufferToBase64(bill.data, bill.contentType);
 
-                    if (imageSource) {
+                for (let i = 0; i < report.billCopies.length; i++) {
+                    const imageUrl = getImageSource(report.billCopies[i]);
+
+
+                    if (imageUrl) {
                         if (i > 0 && i % 2 === 0) {
                             doc.addPage();
                             yPosition = 20;
                         }
 
+
                         try {
-                            doc.addImage(imageSource, 'JPEG', 15, yPosition, 180, 120);
+                            if (imageUrl.startsWith('http')) {
+                                const response = await fetch(imageUrl);
+                                const blob = await response.blob();
+                                const base64 = await new Promise((resolve) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => resolve(reader.result);
+                                    reader.readAsDataURL(blob);
+                                });
+                                doc.addImage(base64, 'JPEG', 15, yPosition, 180, 120);
+                            } else {
+                                doc.addImage(imageUrl, 'JPEG', 15, yPosition, 180, 120);
+                            }
+                            
                             doc.setFontSize(10);
-                            doc.text(bill.fileName || `Bill ${i + 1}`, 15, yPosition + 125);
+                            const fileName = report.billCopies[i].fileName || report.billCopies[i].originalName || `Bill ${i + 1}`;
+                            doc.text(fileName, 15, yPosition + 125);
                             yPosition += 135;
                         } catch (err) {
                             console.error(`Error adding bill ${i + 1}:`, err);
@@ -263,7 +330,8 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 }
             }
 
-            // ✅ ADD OTHER FILES
+
+            // ✅ UPDATED: Other Files (Cloudinary URLs)
             if (report.reportType === "Others" &&
                 report.files && 
                 report.files.length > 0) {
@@ -271,23 +339,38 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 doc.addPage();
                 yPosition = 20;
 
+
                 doc.setFontSize(14);
                 doc.setTextColor(0, 0, 0);
                 doc.text("Other Files", 15, yPosition);
                 yPosition += 10;
 
-                for (let i = 0; i < report.files.length; i++) {
-                    const file = report.files[i];
-                    const imageSource = bufferToBase64(file.data, file.contentType);
 
-                    if (imageSource) {
+                for (let i = 0; i < report.files.length; i++) {
+                    const imageUrl = getImageSource(report.files[i]);
+
+
+                    if (imageUrl) {
                         if (i > 0 && i % 2 === 0) {
                             doc.addPage();
                             yPosition = 20;
                         }
 
+
                         try {
-                            doc.addImage(imageSource, 'JPEG', 15, yPosition, 180, 120);
+                            if (imageUrl.startsWith('http')) {
+                                const response = await fetch(imageUrl);
+                                const blob = await response.blob();
+                                const base64 = await new Promise((resolve) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => resolve(reader.result);
+                                    reader.readAsDataURL(blob);
+                                });
+                                doc.addImage(base64, 'JPEG', 15, yPosition, 180, 120);
+                            } else {
+                                doc.addImage(imageUrl, 'JPEG', 15, yPosition, 180, 120);
+                            }
+                            
                             doc.setFontSize(10);
                             doc.text(`File ${i + 1}`, 15, yPosition + 125);
                             yPosition += 135;
@@ -298,9 +381,11 @@ const ReportDetailsModal = ({ report, onClose }) => {
                 }
             }
 
+
             // Save PDF
             const fileName = `Report_${report.reportType || 'Unknown'}_${report.employee?.employeeId?.employeeId || 'Unknown'}_${new Date().toISOString().split('T')[0]}.pdf`;
             doc.save(fileName);
+
 
             toast.success("Report downloaded successfully!", { theme: "dark" });
         } catch (error) {
@@ -308,6 +393,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
             toast.error("Failed to download report. Try again.", { theme: "dark" });
         }
     };
+
 
     return (
         <div
@@ -326,7 +412,8 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                 Report Details
                             </h2>
 
-                            {/* ✅ Download and Close Buttons */}
+
+                            {/* Download and Close Buttons */}
                             <div className="flex items-center gap-3">
                                 <button
                                     onClick={handleDownloadPDF}
@@ -338,6 +425,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                     Download PDF
                                 </button>
 
+
                                 <button
                                     onClick={onClose}
                                     className="text-gray-500 hover:text-gray-700"
@@ -347,6 +435,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                             </div>
                         </div>
                     </div>
+
 
                     {/* Content */}
                     <div className="p-6">
@@ -394,6 +483,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                 </div>
                             </div>
 
+
                             {/* Campaign Info */}
                             <div className="bg-gray-50 p-4 rounded-lg">
                                 <h3 className="text-lg font-semibold mb-4 text-gray-700">
@@ -426,6 +516,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                     </div>
                                 </div>
                             </div>
+
 
                             {/* Employee Info */}
                             {report.employee?.employeeId && (
@@ -463,6 +554,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                     </div>
                                 </div>
                             )}
+
 
                             {/* Employee Visit Details (if submitted by employee) */}
                             {report.submittedBy?.role === "Employee" && (
@@ -512,6 +604,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                     </div>
                                 </div>
                             )}
+
 
                             {/* Stock Information */}
                             {report.reportType === "Stock" &&
@@ -588,6 +681,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                     </div>
                                 )}
 
+
                             {/* Remarks */}
                             {report.remarks && (
                                 <div className="bg-gray-50 p-4 rounded-lg">
@@ -600,7 +694,8 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                 </div>
                             )}
 
-                            {/* Shop Display Images */}
+
+                            {/* ✅ UPDATED: Shop Display Images - Cloudinary Compatible */}
                             {report.reportType === "Window Display" &&
                                 report.shopDisplayImages &&
                                 report.shopDisplayImages.length > 0 && (
@@ -610,11 +705,9 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                         </h3>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                             {report.shopDisplayImages.map((img, idx) => {
-                                                const imageSource = bufferToBase64(
-                                                    img.data,
-                                                    img.contentType
-                                                );
+                                                const imageSource = getImageSource(img);
                                                 if (!imageSource) return null;
+
 
                                                 return (
                                                     <div
@@ -634,7 +727,8 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                     </div>
                                 )}
 
-                            {/* Bill Copies */}
+
+                            {/* ✅ UPDATED: Bill Copies - Cloudinary Compatible */}
                             {report.reportType === "Stock" &&
                                 report.billCopies &&
                                 report.billCopies.length > 0 && (
@@ -645,11 +739,9 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                         </h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {report.billCopies.map((bill, idx) => {
-                                                const imageSource = bufferToBase64(
-                                                    bill.data,
-                                                    bill.contentType
-                                                );
+                                                const imageSource = getImageSource(bill);
                                                 if (!imageSource) return null;
+
 
                                                 return (
                                                     <div
@@ -669,7 +761,8 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                     </div>
                                 )}
 
-                            {/* Other Files */}
+
+                            {/* ✅ UPDATED: Other Files - Cloudinary Compatible */}
                             {report.reportType === "Others" &&
                                 report.files &&
                                 report.files.length > 0 && (
@@ -679,11 +772,9 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                         </h3>
                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                                             {report.files.map((file, idx) => {
-                                                const imageSource = bufferToBase64(
-                                                    file.data,
-                                                    file.contentType
-                                                );
+                                                const imageSource = getImageSource(file);
                                                 if (!imageSource) return null;
+
 
                                                 return (
                                                     <div
@@ -703,6 +794,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                     </div>
                                 )}
 
+
                             {/* N/A Report Type Block */}
                             {!report.reportType && (
                                 <div className="bg-gray-50 p-4 rounded-lg">
@@ -721,5 +813,6 @@ const ReportDetailsModal = ({ report, onClose }) => {
         </div>
     );
 };
+
 
 export default ReportDetailsModal;

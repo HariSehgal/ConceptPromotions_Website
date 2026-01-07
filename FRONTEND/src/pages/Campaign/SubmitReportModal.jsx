@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Select from "react-select";
 import { FiPlus, FiX } from "react-icons/fi";
 import { API_URL } from "../../url/base";
@@ -51,6 +51,9 @@ const SubmitReportModal = ({
         };
     }, []);
 
+    // Ref to track all preview URLs
+    const previewUrlsRef = useRef([]);
+
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [retailer, setRetailer] = useState(null);
     const [employee, setEmployee] = useState(null);
@@ -76,11 +79,31 @@ const SubmitReportModal = ({
     const [billCopies, setBillCopies] = useState([]);
     const [files, setFiles] = useState([]);
 
+    // Preview URLs
+    const [shopDisplayPreviews, setShopDisplayPreviews] = useState([]);
+    const [billCopyPreviews, setBillCopyPreviews] = useState([]);
+    const [filePreviews, setFilePreviews] = useState([]);
+
     // Initialize filtered options
     useEffect(() => {
         setFilteredEmployees(employees);
         setFilteredRetailers(retailers);
     }, [employees, retailers]);
+
+    // Cleanup all preview URLs on unmount
+    useEffect(() => {
+        return () => {
+            // Revoke all tracked URLs when component unmounts
+            previewUrlsRef.current.forEach(url => {
+                try {
+                    URL.revokeObjectURL(url);
+                } catch (e) {
+                    // Ignore errors for already revoked URLs
+                }
+            });
+            previewUrlsRef.current = [];
+        };
+    }, []);
 
     // Fetch assigned employee when retailer is selected
     const fetchAssignedEmployee = async (retailerId) => {
@@ -193,33 +216,93 @@ const SubmitReportModal = ({
     const handleShopDisplayImageChange = (e) => {
         const newFiles = Array.from(e.target.files || []);
         setShopDisplayImages((prevFiles) => [...prevFiles, ...newFiles]);
+
+        // Create and track preview URLs
+        const newPreviews = newFiles.map(file => {
+            const url = URL.createObjectURL(file);
+            previewUrlsRef.current.push(url); // Track in ref
+            return url;
+        });
+        setShopDisplayPreviews(prev => [...prev, ...newPreviews]);
+
         e.target.value = "";
     };
 
     const removeShopDisplayImage = (index) => {
+        const urlToRevoke = shopDisplayPreviews[index];
+        
+        // Revoke the URL and remove from tracking
+        try {
+            URL.revokeObjectURL(urlToRevoke);
+            previewUrlsRef.current = previewUrlsRef.current.filter(u => u !== urlToRevoke);
+        } catch (e) {
+            // Ignore errors for already revoked URLs
+        }
+
         setShopDisplayImages((prevFiles) => prevFiles.filter((_, i) => i !== index));
+        setShopDisplayPreviews(prev => prev.filter((_, i) => i !== index));
     };
 
     // Bill copy handlers for Stock
     const handleBillCopyChange = (e) => {
         const newFiles = Array.from(e.target.files || []);
         setBillCopies((prevFiles) => [...prevFiles, ...newFiles]);
+
+        // Create and track preview URLs
+        const newPreviews = newFiles.map(file => {
+            const url = URL.createObjectURL(file);
+            previewUrlsRef.current.push(url); // Track in ref
+            return url;
+        });
+        setBillCopyPreviews(prev => [...prev, ...newPreviews]);
+
         e.target.value = "";
     };
 
     const removeBillCopy = (index) => {
+        const urlToRevoke = billCopyPreviews[index];
+        
+        // Revoke the URL and remove from tracking
+        try {
+            URL.revokeObjectURL(urlToRevoke);
+            previewUrlsRef.current = previewUrlsRef.current.filter(u => u !== urlToRevoke);
+        } catch (e) {
+            // Ignore errors for already revoked URLs
+        }
+
         setBillCopies((prevFiles) => prevFiles.filter((_, i) => i !== index));
+        setBillCopyPreviews(prev => prev.filter((_, i) => i !== index));
     };
 
     // File handlers for Others
     const handleFilesChange = (e) => {
         const newFiles = Array.from(e.target.files || []);
         setFiles((prevFiles) => [...prevFiles, ...newFiles]);
+
+        // Create and track preview URLs
+        const newPreviews = newFiles.map(file => {
+            const url = URL.createObjectURL(file);
+            previewUrlsRef.current.push(url); // Track in ref
+            return url;
+        });
+        setFilePreviews(prev => [...prev, ...newPreviews]);
+
         e.target.value = "";
     };
 
     const removeFile = (index) => {
+        const urlToRevoke = filePreviews[index];
+        
+        // Revoke the URL and remove from tracking
+        try {
+            URL.revokeObjectURL(urlToRevoke);
+            previewUrlsRef.current = previewUrlsRef.current.filter(u => u !== urlToRevoke);
+        } catch (e) {
+            // Ignore errors for already revoked URLs
+        }
+
         setFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
+        setFilePreviews(prev => prev.filter((_, i) => i !== index));
     };
 
     const isImage = (file) =>
@@ -503,7 +586,7 @@ const SubmitReportModal = ({
                                                     >
                                                         {isImage(file) ? (
                                                             <img
-                                                                src={URL.createObjectURL(file)}
+                                                                src={billCopyPreviews[index]}
                                                                 className="w-full h-32 object-cover"
                                                                 alt={`bill-preview-${index}`}
                                                             />
@@ -583,7 +666,7 @@ const SubmitReportModal = ({
                                                     className="relative border-2 border-dashed rounded-lg overflow-hidden bg-gray-50 group"
                                                 >
                                                     <img
-                                                        src={URL.createObjectURL(file)}
+                                                        src={shopDisplayPreviews[index]}
                                                         className="w-full h-32 object-cover"
                                                         alt={`preview-${index}`}
                                                     />
@@ -648,7 +731,7 @@ const SubmitReportModal = ({
                                                 >
                                                     {isImage(file) ? (
                                                         <img
-                                                            src={URL.createObjectURL(file)}
+                                                            src={filePreviews[index]}
                                                             className="w-full h-32 object-cover"
                                                             alt={`preview-${index}`}
                                                         />
@@ -668,8 +751,7 @@ const SubmitReportModal = ({
                                                     <button
                                                         type="button"
                                                         onClick={() => removeFile(index)}
-                                                        className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full p-1 
-                        opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                                                     >
                                                         <FiX size={16} />
                                                     </button>

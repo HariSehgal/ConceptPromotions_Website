@@ -140,11 +140,8 @@ const CreateEmployee = () => {
       name: name,
       email: email,
       contactNo: phone,
-      gender: "",
-      address: "",
-      dob: "",
       employeeType: workerType,
-      jobRole: jobRole,
+      position: jobRole, // ✅ Changed from jobRole to position
     }
 
     setSubmitting(true)
@@ -198,8 +195,8 @@ const CreateEmployee = () => {
                 type="button"
                 onClick={() => setWorkerType("Permanent")}
                 className={`cursor-pointer w-44 md:w-52 border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all duration-200 ${workerType === "Permanent"
-                    ? "border-[#E4002B] bg-[#E4002B]/10 shadow"
-                    : "border-gray-400 hover:border-[#E4002B] hover:bg-gray-50"
+                  ? "border-[#E4002B] bg-[#E4002B]/10 shadow"
+                  : "border-gray-400 hover:border-[#E4002B] hover:bg-gray-50"
                   }`}
               >
                 <span className={`font-semibold ${workerType === "Permanent" ? "text-[#E4002B]" : "text-gray-700"}`}>
@@ -212,8 +209,8 @@ const CreateEmployee = () => {
                 type="button"
                 onClick={() => setWorkerType("Contractual")}
                 className={`cursor-pointer w-44 md:w-52 border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all duration-200 ${workerType === "Contractual"
-                    ? "border-[#E4002B] bg-[#E4002B]/10 shadow"
-                    : "border-gray-400 hover:border-[#E4002B] hover:bg-gray-50"
+                  ? "border-[#E4002B] bg-[#E4002B]/10 shadow"
+                  : "border-gray-400 hover:border-[#E4002B] hover:bg-gray-50"
                   }`}
               >
                 <span className={`font-semibold ${workerType === "Contractual" ? "text-[#E4002B]" : "text-gray-700"}`}>
