@@ -131,7 +131,6 @@ export const uploadToCloudinaryWithDetailsOverlay = async (
                         x: -20,
                         y: -20,
                         color: "white",
-                        effect: "shadow:400:3:0.4", // Text shadow
                     },
                     {
                         overlay: {
@@ -145,7 +144,6 @@ export const uploadToCloudinaryWithDetailsOverlay = async (
                         x: -20,
                         y: -50,
                         color: "white",
-                        effect: "shadow:400:2:0.3",
                     },
                     {
                         overlay: {
@@ -157,7 +155,6 @@ export const uploadToCloudinaryWithDetailsOverlay = async (
                         x: -20,
                         y: -75,
                         color: "white",
-                        effect: "shadow:400:1:0.2",
                     },
                 ],
             },
