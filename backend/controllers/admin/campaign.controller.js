@@ -615,6 +615,15 @@ export const updateCampaign = async (req, res) => {
         }
 
         /* =========================
+           ENSURE SUB-DOCUMENTS EXIST
+        ========================== */
+        campaign.info ??= { description: "", tnc: "", banners: [] };
+        campaign.info.banners ??= [];
+
+        campaign.gratification ??= { type: "", description: "", images: [] };
+        campaign.gratification.images ??= [];
+
+        /* =========================
            SAFE BODY EXTRACT
         ========================== */
         const body = req.body || {};
@@ -637,9 +646,6 @@ export const updateCampaign = async (req, res) => {
             gratificationType,
             gratificationDescription,
 
-            assignedRetailers,
-            assignedEmployees,
-
             removeBanners,
             removeGratificationImages,
         } = body;
@@ -650,10 +656,6 @@ export const updateCampaign = async (req, res) => {
         try {
             if (typeof regions === "string") regions = JSON.parse(regions);
             if (typeof states === "string") states = JSON.parse(states);
-            if (typeof assignedRetailers === "string")
-                assignedRetailers = JSON.parse(assignedRetailers);
-            if (typeof assignedEmployees === "string")
-                assignedEmployees = JSON.parse(assignedEmployees);
             if (typeof removeBanners === "string")
                 removeBanners = JSON.parse(removeBanners);
             if (typeof removeGratificationImages === "string")
@@ -680,6 +682,12 @@ export const updateCampaign = async (req, res) => {
         if (termsAndConditions !== undefined)
             campaign.info.tnc = termsAndConditions;
 
+        /* =========================
+           DATE VALIDATION
+        ========================== */
+        let startDate = campaign.campaignStartDate;
+        let endDate = campaign.campaignEndDate;
+
         if (campaignStartDate) {
             const d = new Date(campaignStartDate);
             if (isNaN(d)) {
@@ -688,7 +696,7 @@ export const updateCampaign = async (req, res) => {
                     message: "Invalid campaign start date format",
                 });
             }
-            campaign.campaignStartDate = d;
+            startDate = d;
         }
 
         if (campaignEndDate) {
@@ -699,8 +707,18 @@ export const updateCampaign = async (req, res) => {
                     message: "Invalid campaign end date format",
                 });
             }
-            campaign.campaignEndDate = d;
+            endDate = d;
         }
+
+        if (startDate > endDate) {
+            return res.status(400).json({
+                success: false,
+                message: "Campaign start date cannot be after end date",
+            });
+        }
+
+        campaign.campaignStartDate = startDate;
+        campaign.campaignEndDate = endDate;
 
         /* =========================
            UPDATE GRATIFICATION
