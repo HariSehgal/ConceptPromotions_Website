@@ -1,8 +1,7 @@
 // admin/admin.controller.js
 import bcrypt from "bcryptjs";
-import { Admin, ClientAdmin, ClientUser } from "../../models/user.js";
 import { Retailer } from "../../models/retailer.model.js";
-import { uploadToCloudinary } from "../../utils/cloudinary.config.js";
+import { Admin, ClientAdmin, ClientUser } from "../../models/user.js";
 // ====== ADD NEW ADMIN ======
 export const addAdmin = async (req, res) => {
     try {
@@ -151,7 +150,7 @@ export const bulkAssignEmployeeRetailerToCampaign = async (req, res) => {
          FETCH RETAILER (OPTIONAL)
       ---------------------------------*/
             if (outletCode) {
-                retailer = await Retailer.findOne({ retailerCode: outletCode });
+                retailer = await Retailer.findOne({ uniqueId: outletCode });
                 if (!retailer) {
                     failedRows.push({
                         sno: sno || i + 1,
@@ -310,14 +309,14 @@ export const bulkAssignEmployeeToRetailer = async (req, res) => {
         /* ---------------- PROCESS EACH ROW ---------------- */
         for (let i = 0; i < rawRows.length; i++) {
             const row = normalizeRow(rawRows[i]);
-            const { sno, campaignName, employeeId, retailerCode } = row;
+            const { sno, campaignName, employeeId, uniqueId } = row;
 
             /* -------- BASIC VALIDATION -------- */
-            if (!campaignName || !employeeId || !retailerCode) {
+            if (!campaignName || !employeeId || !uniqueId) {
                 failedRows.push({
                     sno: sno || i + 1,
                     rowNumber: i + 2,
-                    reason: "campaignName, employeeId and retailerCode are required",
+                    reason: "campaignName, employeeId and uniqueId are required",
                     data: row,
                 });
                 continue;
@@ -348,12 +347,12 @@ export const bulkAssignEmployeeToRetailer = async (req, res) => {
             }
 
             /* -------- FETCH RETAILER -------- */
-            const retailer = await Retailer.findOne({ retailerCode });
+            const retailer = await Retailer.findOne({ uniqueId });
             if (!retailer) {
                 failedRows.push({
                     sno: sno || i + 1,
                     rowNumber: i + 2,
-                    reason: `Retailer not found: ${retailerCode}`,
+                    reason: `Retailer not found: ${uniqueId}`,
                     data: row,
                 });
                 continue;
