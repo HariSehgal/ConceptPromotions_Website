@@ -265,6 +265,7 @@ export const loginRetailer = async (req, res) => {
     }
 };
 
+
 /* ===============================
    GET RETAILER PROFILE
 =============================== */
@@ -531,15 +532,16 @@ export const updateRetailer = async (req, res) => {
 export const getRetailerCampaigns = async (req, res) => {
     try {
         // 🔐 AUTH
-        const token = req.headers.authorization?.split(" ")[1];
-        if (!token) {
-            return res.status(401).json({ message: "Unauthorized: No token" });
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            return res.status(401).json({ message: "Unauthorized" });
         }
 
+        const token = authHeader.split(" ")[1];
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const retailerId = decoded.id;
 
-        // 🏪 FETCH RETAILER (for name)
+        // 🏪 RETAILER INFO
         const retailer = await Retailer.findById(retailerId)
             .select("name uniqueId retailerCode")
             .lean();
@@ -548,7 +550,7 @@ export const getRetailerCampaigns = async (req, res) => {
             return res.status(404).json({ message: "Retailer not found" });
         }
 
-        // 🔎 OPTIONAL FILTERS
+        // 🔎 FILTERS
         const { status, isActive } = req.query;
 
         const query = {
@@ -562,30 +564,38 @@ export const getRetailerCampaigns = async (req, res) => {
         // 📦 FETCH CAMPAIGNS
         const campaigns = await Campaign.find(query)
             .populate("createdBy", "name email")
-            .populate(
-                "assignedEmployeeRetailers.employeeId",
-                "name phone email"
-            )
+            .populate({
+                path: "assignedEmployeeRetailers.employeeId",
+                select: "name phone email",
+                options: { strictPopulate: false }, // safety guard
+            })
             .sort({ createdAt: -1 })
             .lean();
 
-        // 🧠 MAP RESPONSE
-        let campaignsWithStatus = campaigns.map((campaign) => {
-            // Retailer entry inside campaign
-            const retailerEntry = campaign.assignedRetailers.find(
-                (r) => r.retailerId.toString() === retailerId.toString()
+        const campaignsWithStatus = campaigns.map((campaign) => {
+            const assignedRetailers = Array.isArray(campaign.assignedRetailers)
+                ? campaign.assignedRetailers
+                : [];
+
+            const retailerEntry = assignedRetailers.find(
+                (r) => r.retailerId?.toString() === retailerId.toString()
             );
 
-            // Employees assigned to THIS retailer in THIS campaign
-            const assignedEmployees = campaign.assignedEmployeeRetailers
+            const employeeMappings = Array.isArray(
+                campaign.assignedEmployeeRetailers
+            )
+                ? campaign.assignedEmployeeRetailers
+                : [];
+
+            const assignedEmployees = employeeMappings
                 .filter(
-                    (map) => map.retailerId.toString() === retailerId.toString()
+                    (m) => m.retailerId?.toString() === retailerId.toString()
                 )
-                .map((map) => ({
-                    _id: map.employeeId?._id,
-                    name: map.employeeId?.name,
-                    phone: map.employeeId?.phone,
-                    email: map.employeeId?.email,
+                .map((m) => ({
+                    _id: m.employeeId?._id || null,
+                    name: m.employeeId?.name || "",
+                    phone: m.employeeId?.phone || "",
+                    email: m.employeeId?.email || "",
                 }));
 
             return {
@@ -603,8 +613,8 @@ export const getRetailerCampaigns = async (req, res) => {
 
                 retailerStatus: {
                     status: retailerEntry?.status || "pending",
-                    assignedAt: retailerEntry?.assignedAt,
-                    updatedAt: retailerEntry?.updatedAt,
+                    assignedAt: retailerEntry?.assignedAt || null,
+                    updatedAt: retailerEntry?.updatedAt || null,
                     startDate:
                         retailerEntry?.startDate || campaign.campaignStartDate,
                     endDate: retailerEntry?.endDate || campaign.campaignEndDate,
@@ -614,27 +624,25 @@ export const getRetailerCampaigns = async (req, res) => {
             };
         });
 
-        // 🔽 FILTER BY STATUS (OPTIONAL)
-        if (status) {
-            campaignsWithStatus = campaignsWithStatus.filter(
-                (c) => c.retailerStatus.status === status.toLowerCase()
-            );
-        }
+        const finalResult = status
+            ? campaignsWithStatus.filter(
+                  (c) => c.retailerStatus.status === status.toLowerCase()
+              )
+            : campaignsWithStatus;
 
-        // ✅ RESPONSE
-        res.status(200).json({
-            count: campaignsWithStatus.length,
+        return res.status(200).json({
+            count: finalResult.length,
             retailer: {
                 id: retailer._id,
                 name: retailer.name,
                 uniqueId: retailer.uniqueId,
                 retailerCode: retailer.retailerCode,
             },
-            campaigns: campaignsWithStatus,
+            campaigns: finalResult,
         });
     } catch (error) {
         console.error("Get retailer campaigns error:", error);
-        res.status(500).json({
+        return res.status(500).json({
             message: "Server error",
             error: error.message,
         });

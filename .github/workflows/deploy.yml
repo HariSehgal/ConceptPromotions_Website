@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Deploy to server via SSH
+      - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -21,39 +21,39 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             set -e
-            echo "🚀 Starting deployment..."
+            echo "🚀 CI/CD DEPLOYMENT STARTED"
 
-            cd ${{ secrets.SERVER_PATH }}
+            cd /root/supreme
 
-            echo "📥 Pulling latest code..."
-            git pull origin main
+            echo "📥 Resetting & pulling latest code"
+            git fetch origin
+            git reset --hard origin/main
 
             # ======================
-            # 🔧 BACKEND DEPLOY
+            # 🔧 BACKEND
             # ======================
-            echo "🔧 Deploying backend..."
+            echo "🔧 Deploying backend"
             cd backend
             npm install --production
             pm2 restart concept-backend || pm2 start server.js --name concept-backend
 
             # ======================
-            # 🎨 FRONTEND BUILD
+            # 🎨 FRONTEND
             # ======================
-            echo "🎨 Building frontend..."
+            echo "🎨 Building frontend"
             cd ../FRONTEND
             npm install
             npm run build
 
-            echo "🚚 Deploying frontend to Nginx..."
-            sudo rm -rf /var/www/conceptpromotions/*
-            sudo cp -r dist/* /var/www/conceptpromotions/
+            echo "🚚 Copying frontend build to Nginx"
+            rm -rf /var/www/conceptpromotions/*
+            cp -r dist/* /var/www/conceptpromotions/
 
-            sudo chown -R www-data:www-data /var/www/conceptpromotions
-            sudo chmod -R 755 /var/www/conceptpromotions
+            chown -R www-data:www-data /var/www/conceptpromotions
+            chmod -R 755 /var/www/conceptpromotions
 
-            # ======================
-            # 💾 SAVE PM2 STATE
-            # ======================
+            echo "💾 Saving PM2 state"
             pm2 save
 
-            echo "✅ Deployment compelte"
+            echo "✅ DEPLOYMENT COMPelte"
+
