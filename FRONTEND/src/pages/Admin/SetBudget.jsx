@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Select from "react-select";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { API_URL } from "../../url/base";
 
 const customSelectStyles = {
     control: (provided, state) => ({
@@ -62,7 +63,7 @@ const SetBudget = () => {
 
             // Fetch Campaigns
             const campaignsRes = await fetch(
-                "https://conceptpromotions.in/api/admin/campaigns",
+                `${API_URL}/admin/campaigns`,
                 {
                     headers: { Authorization: `Bearer ${token}` },
                 }
@@ -74,7 +75,7 @@ const SetBudget = () => {
 
             // Fetch Retailers
             const retailersRes = await fetch(
-                "https://conceptpromotions.in/api/admin/retailers",
+                `${API_URL}/admin/retailers`,
                 {
                     headers: { Authorization: `Bearer ${token}` },
                 }
@@ -130,7 +131,7 @@ const SetBudget = () => {
         try {
             const token = localStorage.getItem("token");
             const response = await fetch(
-                `https://conceptpromotions.in/api/budgets/retailer/${selectedRetailer.value}`,
+                `${API_URL}/budgets/retailer/${selectedRetailer.value}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -207,7 +208,7 @@ const SetBudget = () => {
     };
 
     // ===============================
-    // FILTER LOGIC
+    // FILTER LOGIC - ✅ FIXED
     // ===============================
     useEffect(() => {
         if (!selectedState && !selectedCampaign && !selectedRetailer) {
@@ -233,7 +234,32 @@ const SetBudget = () => {
         let filteredCampaigns = [...allCampaigns];
         let filteredStates = [...allStates];
 
-        if (selectedState) {
+        // ✅ PRIORITY 1: If retailer is selected, filter campaigns by retailer's assigned campaigns
+        if (selectedRetailer) {
+            const retailerData = allRetailers.find(
+                (r) => r._id === selectedRetailer.value
+            );
+
+            if (retailerData) {
+                const retailerState = retailerData.shopDetails?.shopAddress?.state;
+
+                // Set state based on retailer
+                if (!selectedState && retailerState) {
+                    filteredStates = [retailerState];
+                }
+
+                // ✅ FIXED: Only show campaigns assigned to this retailer
+                const retailerCampaignIds = (
+                    retailerData.assignedCampaigns || []
+                ).map((ac) => (typeof ac === "string" ? ac : ac._id));
+
+                filteredCampaigns = allCampaigns.filter((c) =>
+                    retailerCampaignIds.includes(c._id)
+                );
+            }
+        }
+        // If no retailer selected but state is selected
+        else if (selectedState) {
             filteredRetailers = filteredRetailers.filter(
                 (r) => r.shopDetails?.shopAddress?.state === selectedState.value
             );
@@ -246,7 +272,8 @@ const SetBudget = () => {
             });
         }
 
-        if (selectedCampaign) {
+        // ✅ PRIORITY 2: If campaign is selected (and no retailer yet), filter retailers by campaign
+        if (selectedCampaign && !selectedRetailer) {
             const campaignData = allCampaigns.find(
                 (c) => c._id === selectedCampaign.value
             );
@@ -277,30 +304,6 @@ const SetBudget = () => {
                         );
                     return inCampaignState && assignedToCampaign;
                 });
-            }
-        }
-
-        if (selectedRetailer) {
-            const retailerData = allRetailers.find(
-                (r) => r._id === selectedRetailer.value
-            );
-
-            if (retailerData) {
-                const retailerState = retailerData.shopDetails?.shopAddress?.state;
-
-                if (!selectedState && retailerState) {
-                    filteredStates = [retailerState];
-                }
-
-                if (!selectedCampaign) {
-                    const retailerCampaignIds = (
-                        retailerData.assignedCampaigns || []
-                    ).map((ac) => (typeof ac === "string" ? ac : ac._id));
-
-                    filteredCampaigns = filteredCampaigns.filter((c) =>
-                        retailerCampaignIds.includes(c._id)
-                    );
-                }
             }
         }
 
@@ -396,7 +399,7 @@ const SetBudget = () => {
             };
 
             const response = await fetch(
-                "https://conceptpromotions.in/api/budgets/set-campaign-tca",
+                `${API_URL}/budgets/set-campaign-tca`,
                 {
                     method: "POST",
                     headers: {
@@ -441,7 +444,7 @@ const SetBudget = () => {
         try {
             const token = localStorage.getItem("token");
             const response = await fetch(
-                `https://conceptpromotions.in/api/budgets/${budgetId}/campaign/${campaignSubId}/tca`,
+                `${API_URL}/budgets/${budgetId}/campaign/${campaignSubId}/tca`,
                 {
                     method: "PATCH",
                     headers: {
@@ -485,7 +488,7 @@ const SetBudget = () => {
         try {
             const token = localStorage.getItem("token");
             const response = await fetch(
-                `https://conceptpromotions.in/api/budgets/${budgetId}/campaign/${campaignSubId}`,
+                `${API_URL}/budgets/${budgetId}/campaign/${campaignSubId}`,
                 {
                     method: "DELETE",
                     headers: {

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import Select from "react-select";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import * as XLSX from 'xlsx-js-style';
+import { API_URL } from "../../url/base";
 
 const customSelectStyles = {
   control: (provided, state) => ({
@@ -39,17 +41,16 @@ const customSelectStyles = {
   }),
 };
 
+
 const ClientPassbook = () => {
-  const API_BASE_URL = "https://conceptpromotions.in/api";
   const token = localStorage.getItem("client_token");
 
-  // Ref to track if data has been fetched
   const hasFetched = useRef(false);
 
   // Campaign Status Filter
-  const [campaignStatus, setCampaignStatus] = useState({ 
-    value: "active", 
-    label: "Active" 
+  const [campaignStatus, setCampaignStatus] = useState({
+    value: "active",
+    label: "Active"
   });
 
   // All Data from APIs
@@ -60,7 +61,7 @@ const ClientPassbook = () => {
   const [selectedStates, setSelectedStates] = useState([]);
   const [selectedCampaigns, setSelectedCampaigns] = useState([]);
   const [selectedRetailers, setSelectedRetailers] = useState([]);
-  
+
   // Date Range Filter
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -82,7 +83,6 @@ const ClientPassbook = () => {
   // FETCH ALL DATA ON MOUNT
   // ===============================
   useEffect(() => {
-    // Only fetch if not already fetched
     if (!hasFetched.current) {
       fetchAllData();
       hasFetched.current = true;
@@ -94,7 +94,7 @@ const ClientPassbook = () => {
     try {
       // Fetch campaigns
       const campaignsRes = await fetch(
-        `${API_BASE_URL}/client/client/campaigns`,
+        `${API_URL}/client/client/campaigns`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -103,16 +103,12 @@ const ClientPassbook = () => {
       setAllCampaigns(campaignsData.campaigns || []);
 
       // Fetch all budgets (for passbook data)
-      const budgetsRes = await fetch(`${API_BASE_URL}/budgets`, {
+      const budgetsRes = await fetch(`${API_URL}/budgets`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const budgetsData = await budgetsRes.json();
       setBudgets(budgetsData.budgets || []);
 
-      toast.success("Data loaded successfully!", { 
-        theme: "dark", 
-        toastId: "data-loaded" 
-      });
     } catch (err) {
       console.error("Error fetching data:", err);
       toast.error("Failed to load data", { theme: "dark" });
@@ -191,49 +187,42 @@ const ClientPassbook = () => {
   // ===============================
   // HELPER FUNCTIONS
   // ===============================
-  // Helper function to parse date strings (handles both YYYY-MM-DD and dd/mm/yyyy)
   const parseDate = (dateStr) => {
     if (!dateStr) return null;
-    
-    // Check if it's YYYY-MM-DD format (contains dashes)
+
     if (dateStr.includes('-')) {
       return new Date(dateStr);
     } else if (dateStr.includes('/')) {
-      // dd/mm/yyyy format
       const parts = dateStr.split('/');
       if (parts.length !== 3) return null;
       return new Date(parts[2], parts[1] - 1, parts[0]);
     }
-    
+
     return null;
   };
 
-  // Helper function to format date to dd/mm/yyyy
   const formatDateToDDMMYYYY = (dateStr) => {
     if (!dateStr || dateStr === "N/A") return "N/A";
-    
+
     const date = parseDate(dateStr);
     if (!date || isNaN(date.getTime())) return "N/A";
-    
+
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
-    
+
     return `${day}/${month}/${year}`;
   };
 
-  // Helper function to check if date is in range
   const isDateInRange = (dateStr, start, end) => {
-    if (!start && !end) return true; // No date filter applied
-    
+    if (!start && !end) return true;
+
     const date = parseDate(dateStr);
-    if (!date || isNaN(date.getTime())) return false; // Invalid date
-    
-    // Input dates are in YYYY-MM-DD format from HTML date input
+    if (!date || isNaN(date.getTime())) return false;
+
     const startDateObj = start ? new Date(start) : null;
     const endDateObj = end ? new Date(end) : null;
 
-    // Set times to start of day for accurate comparison
     date.setHours(0, 0, 0, 0);
     if (startDateObj) startDateObj.setHours(0, 0, 0, 0);
     if (endDateObj) endDateObj.setHours(0, 0, 0, 0);
@@ -254,11 +243,10 @@ const ClientPassbook = () => {
   const allDisplayData = useMemo(() => {
     const data = [];
 
-    // Loop through filtered campaigns
     filteredCampaigns.forEach((campaign) => {
       (campaign.assignedRetailers || []).forEach((retailerAssignment) => {
         const retailer = retailerAssignment.retailerId;
-        
+
         if (!retailer || !retailer._id) return;
 
         const retailerId = retailer._id;
@@ -284,46 +272,44 @@ const ClientPassbook = () => {
           if (!retailerIds.includes(retailerId)) return;
         }
 
-        // Find budget data for this retailer
-        const budget = budgets.find((b) => 
-          (b.retailerId._id || b.retailerId) === retailerId
-        );
+        // ✅ Find budget data with null safety
+        const budget = budgets.find((b) => {
+          if (!b.retailerId) return false;
+          const budgetRetailerId = b.retailerId._id || b.retailerId;
+          return budgetRetailerId === retailerId;
+        });
 
         if (budget) {
-          // Find campaign-specific budget
-          const campaignBudget = budget.campaigns.find(
-            (c) => (c.campaignId._id || c.campaignId) === campaign._id
-          );
+          // ✅ Find campaign budget with null safety
+          const campaignBudget = budget.campaigns.find((c) => {
+            if (!c.campaignId) return false;
+            const budgetCampaignId = c.campaignId._id || c.campaignId;
+            return budgetCampaignId === campaign._id;
+          });
 
           if (campaignBudget) {
-            // Filter installments by date range
             const filteredInstallments = (campaignBudget.installments || []).filter(
               (inst) => isDateInRange(inst.dateOfInstallment, startDate, endDate)
             );
 
-            // Calculate paid amount from filtered installments
             const cPaid = filteredInstallments.reduce((sum, inst) => {
               return sum + (inst.installmentAmount || 0);
             }, 0);
 
-            // Calculate pending
             const cPending = campaignBudget.tca - cPaid;
 
-            // Find the last payment date from filtered installments
             let lastPaymentDate = "N/A";
             if (filteredInstallments.length > 0) {
               const sortedInstallments = [...filteredInstallments].sort((a, b) => {
                 const dateA = parseDate(a.dateOfInstallment);
                 const dateB = parseDate(b.dateOfInstallment);
-                return dateB - dateA; // Descending order
+                return dateB - dateA;
               });
               lastPaymentDate = sortedInstallments[0].dateOfInstallment;
             }
 
-            // If date filter is applied, only show records with matching installments
-            // Otherwise show all records
             if ((startDate || endDate) && filteredInstallments.length === 0) {
-              return; // Skip this record if no installments match the date filter
+              return;
             }
 
             data.push({
@@ -336,6 +322,7 @@ const ClientPassbook = () => {
               cPaid,
               cPending,
               lastPaymentDate,
+              installments: filteredInstallments,
             });
           }
         }
@@ -353,25 +340,25 @@ const ClientPassbook = () => {
     endDate,
   ]);
 
+
   // ===============================
   // PAGINATION LOGIC
   // ===============================
   const totalRecords = allDisplayData.length;
   const totalPages = Math.ceil(totalRecords / limit);
-  
+
   const displayData = useMemo(() => {
     const startIndex = (currentPage - 1) * limit;
     const endIndex = startIndex + limit;
     return allDisplayData.slice(startIndex, endIndex);
   }, [allDisplayData, currentPage, limit]);
 
-  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedStates, selectedCampaigns, selectedRetailers, startDate, endDate, campaignStatus]);
 
   // ===============================
-  // CALCULATE CARD TOTALS (from all data, not just current page)
+  // CALCULATE CARD TOTALS
   // ===============================
   const cardTotals = useMemo(() => {
     const totalBudget = allDisplayData.reduce((sum, record) => sum + record.tca, 0);
@@ -384,6 +371,184 @@ const ClientPassbook = () => {
       totalPending,
     };
   }, [allDisplayData]);
+
+  // ===============================
+  // DOWNLOAD PASSBOOK TO EXCEL
+  // ===============================
+  const handleDownloadPassbook = () => {
+    if (allDisplayData.length === 0) {
+      toast.error("No data to download", { theme: "dark" });
+      return;
+    }
+
+    const rows = [];
+
+    // Row 1: Title
+    rows.push({
+      A: "CLIENT PASSBOOK REPORT",
+      B: "", C: "", D: "", E: "", F: "", G: "", H: "", I: "", J: "", K: ""
+    });
+
+    // Row 2: Empty
+    rows.push({});
+
+    // Row 3: SUMMARY label
+    rows.push({ A: "SUMMARY" });
+
+    // Row 4: Summary values
+    rows.push({
+      A: "Total Budget",
+      B: `₹${cardTotals.totalBudget.toLocaleString()}`,
+      C: "",
+      D: "Total Paid",
+      E: `₹${cardTotals.totalSpending.toLocaleString()}`,
+      F: "",
+      G: "Total Balance",
+      H: `₹${cardTotals.totalPending.toLocaleString()}`,
+      I: "", J: "", K: ""
+    });
+
+    // Row 5 & 6: Empty rows
+    rows.push({});
+    rows.push({});
+
+    // Row 7: Header
+    rows.push({
+      A: "S.No",
+      B: "State",
+      C: "Outlet Name",
+      D: "Outlet Code",
+      E: "Campaign Name",
+      F: "Total Campaign Amount",
+      G: "Paid",
+      H: "Balance",
+      I: "Date",
+      J: "UTR Number",
+      K: "Remarks"
+    });
+
+    // ✅ Data rows with continuous S.No and running balance calculation
+    let serialNumber = 1;
+
+    allDisplayData.forEach((record) => {
+      const installments = record.installments || [];
+      const totalBudget = record.tca;
+
+      if (installments.length === 0) {
+        // ✅ No installments - show "-" for empty fields
+        rows.push({
+          A: serialNumber++,
+          B: record.state,
+          C: record.shopName,
+          D: record.outletCode,
+          E: record.campaignName,
+          F: totalBudget,
+          G: "-",        // ✅ No payment made
+          H: totalBudget, // Full balance remaining
+          I: "-",        // ✅ No date
+          J: "-",        // ✅ No UTR
+          K: "-"         // ✅ No remarks
+        });
+      } else {
+        // ✅ Has installments - Calculate running balance
+        let cumulativePaid = 0;
+
+        // Sort installments by date (oldest first) for proper balance calculation
+        const sortedInstallments = [...installments].sort((a, b) => {
+          const dateA = parseDate(a.dateOfInstallment);
+          const dateB = parseDate(b.dateOfInstallment);
+          return dateA - dateB; // Ascending order
+        });
+
+        sortedInstallments.forEach((inst) => {
+          const paidAmount = inst.installmentAmount || 0;
+          cumulativePaid += paidAmount;
+          const balance = totalBudget - cumulativePaid;
+
+          rows.push({
+            A: serialNumber++,
+            B: record.state,
+            C: record.shopName,
+            D: record.outletCode,
+            E: record.campaignName,
+            F: totalBudget,
+            G: paidAmount,                              // Amount paid in THIS installment
+            H: balance,                                  // Balance AFTER this payment
+            I: formatDateToDDMMYYYY(inst.dateOfInstallment),
+            J: inst.utrNumber || "-",                    // ✅ UTR or "-"
+            K: inst.remarks || "-"                       // ✅ Remarks or "-"
+          });
+        });
+      }
+    });
+
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(rows, { skipHeader: true });
+
+    // Styling
+    const titleStyle = {
+      font: { color: { rgb: "FFFFFF" }, bold: true, sz: 16 },
+      alignment: { horizontal: "center", vertical: "center" },
+      fill: { fgColor: { rgb: "E4002B" } }
+    };
+
+    const headerStyle = {
+      font: { bold: true },
+      alignment: { horizontal: "center", vertical: "center" },
+      fill: { fgColor: { rgb: "E2E8F0" } }
+    };
+
+    const dataStyle = {
+      alignment: { horizontal: "center", vertical: "center" }
+    };
+
+    // Apply styles
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+        if (ws[cellAddress]) {
+          if (R === 0) {
+            ws[cellAddress].s = titleStyle;
+          } else if (R === 6) {
+            ws[cellAddress].s = headerStyle;
+          } else {
+            ws[cellAddress].s = dataStyle;
+          }
+        }
+      }
+    }
+
+    // Merge cells for title (Row 1, A1:K1)
+    if (!ws['!merges']) ws['!merges'] = [];
+    ws['!merges'].push({
+      s: { r: 0, c: 0 },
+      e: { r: 0, c: 10 }
+    });
+
+    // Column widths
+    ws["!cols"] = [
+      { wpx: 60 },   // A: S.No
+      { wpx: 120 },  // B: State
+      { wpx: 180 },  // C: Outlet Name
+      { wpx: 120 },  // D: Outlet Code
+      { wpx: 180 },  // E: Campaign Name
+      { wpx: 160 },  // F: Total Campaign Amount
+      { wpx: 120 },  // G: Paid
+      { wpx: 120 },  // H: Balance
+      { wpx: 100 },  // I: Date
+      { wpx: 120 },  // J: UTR Number
+      { wpx: 120 }   // K: Remarks
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Passbook");
+
+    const fileName = `Client_Passbook_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+
+    toast.success("Passbook downloaded successfully!", { theme: "dark" });
+  };
 
   // ===============================
   // PAGINATION FUNCTIONS
@@ -455,12 +620,27 @@ const ClientPassbook = () => {
 
   return (
     <>
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastContainer position="top-right" autoClose={1000} />
       <div className="min-h-screen bg-[#171717] p-6">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-bold text-[#E4002B] mb-8">
-            Client Passbook
-          </h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-[#E4002B]">
+              Client Passbook
+            </h1>
+
+            {/* ✅ Download Button */}
+            {allDisplayData.length > 0 && (
+              <button
+                onClick={handleDownloadPassbook}
+                className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2 cursor-pointer"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Download Passbook
+              </button>
+            )}
+          </div>
 
           {loading ? (
             <div className="bg-[#EDEDED] rounded-lg shadow-md p-6">
@@ -578,16 +758,16 @@ const ClientPassbook = () => {
                   selectedRetailers.length > 0 ||
                   startDate ||
                   endDate) && (
-                  <button
-                    onClick={handleClearAllFilters}
-                    className="mt-4 text-sm text-red-600 underline hover:text-red-800"
-                  >
-                    Clear All Filters
-                  </button>
-                )}
+                    <button
+                      onClick={handleClearAllFilters}
+                      className="mt-4 text-sm text-red-600 underline hover:text-red-800"
+                    >
+                      Clear All Filters
+                    </button>
+                  )}
               </div>
 
-              {/* Summary Cards - WITHOUT WHITE CIRCLES */}
+              {/* Summary Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 {/* Total Budget Card */}
                 <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
@@ -597,17 +777,17 @@ const ClientPassbook = () => {
                   </h3>
                 </div>
 
-                {/* Total Spending Card */}
+                {/* Total Paid Amount Card */}
                 <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
-                  <p className="text-sm font-medium opacity-90">Total Spending</p>
+                  <p className="text-sm font-medium opacity-90">Total Paid Amount</p>
                   <h3 className="text-3xl font-bold mt-2">
                     ₹{cardTotals.totalSpending.toLocaleString()}
                   </h3>
                 </div>
 
-                {/* Total Pending Card */}
+                {/* Total Pending Amount Card */}
                 <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg shadow-lg p-6 text-white">
-                  <p className="text-sm font-medium opacity-90">Total Pending</p>
+                  <p className="text-sm font-medium opacity-90">Total Pending Amount</p>
                   <h3 className="text-3xl font-bold mt-2">
                     ₹{cardTotals.totalPending.toLocaleString()}
                   </h3>
@@ -738,11 +918,10 @@ const ClientPassbook = () => {
                                 <button
                                   key={pageNum}
                                   onClick={() => handlePageChange(pageNum)}
-                                  className={`px-3 py-2 rounded text-sm ${
-                                    currentPage === pageNum
-                                      ? "bg-[#E4002B] text-white"
-                                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                                  }`}
+                                  className={`px-3 py-2 rounded text-sm ${currentPage === pageNum
+                                    ? "bg-[#E4002B] text-white"
+                                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                                    }`}
                                 >
                                   {pageNum}
                                 </button>

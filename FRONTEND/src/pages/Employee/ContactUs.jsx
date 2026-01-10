@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { API_URL } from "../../url/base";
 import {
   FaUser,
   FaPhoneAlt,
@@ -108,7 +109,7 @@ const ContactForm = () => {
 
     try {
       // Replace with your actual backend URL
-      const res = await fetch("https://conceptpromotions.in/api/contact/send", {
+      const res = await fetch(`${API_URL}/contact/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

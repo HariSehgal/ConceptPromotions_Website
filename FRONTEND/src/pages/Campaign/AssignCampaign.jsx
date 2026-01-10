@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Select from "react-select";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { API_URL } from "../../url/base";
 
 const BUSINESS_TYPES = [
   "Grocery Retailer",
@@ -78,7 +79,7 @@ const AssignCampaign = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
-        "https://conceptpromotions.in/api/admin/campaigns",
+        `${API_URL}/admin/campaigns`,
         {
           method: "GET",
           headers: { Authorization: `Bearer ${token}` },
@@ -120,7 +121,7 @@ const AssignCampaign = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
-        "https://conceptpromotions.in/api/admin/retailers",
+        `${API_URL}/admin/retailers`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await res.json();
@@ -146,7 +147,7 @@ const AssignCampaign = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
-        "https://conceptpromotions.in/api/admin/employees",
+        `${API_URL}/admin/employees`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await res.json();
@@ -446,7 +447,7 @@ const AssignCampaign = () => {
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
-        "https://conceptpromotions.in/api/admin/campaigns/assign",
+        `${API_URL}/admin/campaigns/assign`,
         {
           method: "POST",
           headers: {

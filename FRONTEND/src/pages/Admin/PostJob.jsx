@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { API_URL } from "../../url/base";
 import {
   FaBriefcase,
   FaMapMarkerAlt,
@@ -64,7 +65,7 @@ const PostJob = () => {
 
     try {
       setLoading(true);
-      const response = await fetch("https://conceptpromotions.in/api/admin/jobs", {
+      const response = await fetch(`${API_URL}/admin/jobs`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Select from "react-select";
+import { API_URL } from "../../url/base";
 
 const CampaignStatus = ({ onViewCampaign }) => {
   const [allCampaigns, setAllCampaigns] = useState([]);
@@ -21,7 +22,7 @@ const CampaignStatus = ({ onViewCampaign }) => {
   const fetchCampaigns = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("https://conceptpromotions.in/api/admin/campaigns", {
+      const res = await fetch(`${API_URL}/admin/campaigns`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

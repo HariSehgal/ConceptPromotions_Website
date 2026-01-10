@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import Select from "react-select";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { toast } from "react-toastify";
 
 const customSelectStyles = {
     control: (provided, state) => ({
@@ -65,7 +68,6 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
     const [productType, setProductType] = useState(
         productTypeOptions.find((pt) => pt.value === report.productType) || null
     );
-
     const [brand, setBrand] = useState(report.brand || "");
     const [product, setProduct] = useState(report.product || "");
     const [sku, setSku] = useState(report.sku || "");
@@ -75,11 +77,45 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
     const [images, setImages] = useState([]);
     const [billCopies, setBillCopies] = useState([]);
     const [files, setFiles] = useState([]);
+
+    // Preview URL states
+    const [imagePreviews, setImagePreviews] = useState([]);
+    const [billCopyPreviews, setBillCopyPreviews] = useState([]);
+    const [filePreviews, setFilePreviews] = useState([]);
+
     const [isSaving, setIsSaving] = useState(false);
-    const [activeImageIndex, setActiveImageIndex] = useState(0);
     const [removedImageIndices, setRemovedImageIndices] = useState([]);
     const [removedBillIndices, setRemovedBillIndices] = useState([]);
     const [removedFileIndices, setRemovedFileIndices] = useState([]);
+
+    // ✅ FIX: Use ref to track blob URLs for proper cleanup
+    const previewUrlsRef = useRef({
+        images: [],
+        bills: [],
+        files: []
+    });
+
+    // ✅ FIX: Cleanup preview URLs on unmount only
+    useEffect(() => {
+        return () => {
+            // Cleanup all blob URLs when component unmounts
+            previewUrlsRef.current.images.forEach((url) => {
+                try {
+                    URL.revokeObjectURL(url);
+                } catch (e) {}
+            });
+            previewUrlsRef.current.bills.forEach((url) => {
+                try {
+                    URL.revokeObjectURL(url);
+                } catch (e) {}
+            });
+            previewUrlsRef.current.files.forEach((url) => {
+                try {
+                    URL.revokeObjectURL(url);
+                } catch (e) {}
+            });
+        };
+    }, []);
 
     const formatDate = (dateString) => {
         if (!dateString) return "N/A";
@@ -96,18 +132,383 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
         }
     };
 
+    // ✅ Helper function to get Cloudinary image URL
+    const getImageSource = (imageData) => {
+        if (!imageData) return null;
+        if (typeof imageData === 'string') return imageData;
+        if (imageData.secure_url) return imageData.secure_url;
+        if (imageData.url) return imageData.url;
+        return null;
+    };
+
+    // PDF Download with Cloudinary support
+    const handleDownloadPDF = async () => {
+        try {
+            const doc = new jsPDF();
+            let yPosition = 20;
+
+            // Title
+            doc.setFontSize(18);
+            doc.setTextColor(228, 0, 43);
+            doc.text("REPORT DETAILS", 105, yPosition, { align: "center" });
+            yPosition += 15;
+
+            // Basic Information
+            doc.setFontSize(14);
+            doc.setTextColor(0, 0, 0);
+            doc.text("Basic Information", 15, yPosition);
+            yPosition += 8;
+
+            autoTable(doc, {
+                startY: yPosition,
+                head: [["Field", "Value"]],
+                body: [
+                    ["Report Type", report.reportType || "N/A"],
+                    ["Frequency", report.frequency || "N/A"],
+                ],
+                theme: "grid",
+                headStyles: { fillColor: [228, 0, 43] },
+                margin: { left: 15, right: 15 },
+            });
+
+            yPosition = doc.lastAutoTable.finalY + 10;
+
+            // Campaign Information
+            doc.setFontSize(14);
+            doc.text("Campaign Information", 15, yPosition);
+            yPosition += 8;
+
+            autoTable(doc, {
+                startY: yPosition,
+                head: [["Field", "Value"]],
+                body: [
+                    ["Campaign Name", report.campaignId?.name || "N/A"],
+                    ["Campaign Type", report.campaignId?.type || "N/A"],
+                    ["Client", report.campaignId?.client || "N/A"],
+                ],
+                theme: "grid",
+                headStyles: { fillColor: [228, 0, 43] },
+                margin: { left: 15, right: 15 },
+            });
+
+            yPosition = doc.lastAutoTable.finalY + 10;
+
+            // Retailer Information
+            doc.setFontSize(14);
+            doc.text("Retailer Information", 15, yPosition);
+            yPosition += 8;
+
+            autoTable(doc, {
+                startY: yPosition,
+                head: [["Field", "Value"]],
+                body: [
+                    ["Retailer Name", report.retailer?.retailerName || "N/A"],
+                    ["Outlet Code", report.retailer?.outletCode || "N/A"],
+                    ["Outlet Name", report.retailer?.outletName || "N/A"],
+                    ["Contact", report.retailer?.retailerId?.contactNo || "N/A"],
+                ],
+                theme: "grid",
+                headStyles: { fillColor: [228, 0, 43] },
+                margin: { left: 15, right: 15 },
+            });
+
+            yPosition = doc.lastAutoTable.finalY + 10;
+
+            // Employee Information
+            if (report.employee?.employeeName) {
+                doc.setFontSize(14);
+                doc.text("Employee Information", 15, yPosition);
+                yPosition += 8;
+
+                autoTable(doc, {
+                    startY: yPosition,
+                    head: [["Field", "Value"]],
+                    body: [
+                        ["Employee Name", report.employee?.employeeName || "N/A"],
+                        ["Employee Code", report.employee?.employeeCode || "N/A"],
+                        ["Phone", report.employee?.employeeId?.phone || "N/A"],
+                    ],
+                    theme: "grid",
+                    headStyles: { fillColor: [228, 0, 43] },
+                    margin: { left: 15, right: 15 },
+                });
+
+                yPosition = doc.lastAutoTable.finalY + 10;
+            }
+
+            // VISIT DETAILS
+            if (report.submittedBy?.role === "Employee") {
+                doc.setFontSize(14);
+                doc.text("Visit Details", 15, yPosition);
+                yPosition += 8;
+
+                const visitData = [];
+                if (report.typeOfVisit) visitData.push(["Type of Visit", report.typeOfVisit || "N/A"]);
+                if (report.attendedVisit) {
+                    const attendanceStatus = report.attendedVisit === "yes" ? "Attended" : "Not Attended";
+                    visitData.push(["Attendance Status", attendanceStatus]);
+                }
+                if (report.attendedVisit === "no" && report.reasonForNonAttendance) {
+                    if (report.reasonForNonAttendance.reason) {
+                        visitData.push(["Reason for Non-Attendance", report.reasonForNonAttendance.reason]);
+                    }
+                    if (report.reasonForNonAttendance.reason === "others" && report.reasonForNonAttendance.otherReason) {
+                        visitData.push(["Additional Details", report.reasonForNonAttendance.otherReason]);
+                    }
+                }
+
+                if (visitData.length > 0) {
+                    autoTable(doc, {
+                        startY: yPosition,
+                        head: [["Field", "Value"]],
+                        body: visitData,
+                        theme: "grid",
+                        headStyles: { fillColor: [228, 0, 43] },
+                        margin: { left: 15, right: 15 },
+                    });
+
+                    yPosition = doc.lastAutoTable.finalY + 10;
+                }
+            }
+
+            // Product/Stock Information
+            if (report.reportType === "Stock" &&
+                (report.brand || report.product || report.sku || report.stockType)) {
+
+                doc.setFontSize(14);
+                doc.text("Product/Stock Information", 15, yPosition);
+                yPosition += 8;
+
+                const stockData = [];
+                if (report.stockType) stockData.push(["Stock Type", report.stockType]);
+                if (report.brand) stockData.push(["Brand", report.brand]);
+                if (report.product) stockData.push(["Product", report.product]);
+                if (report.sku) stockData.push(["SKU", report.sku]);
+                if (report.productType) stockData.push(["Product Type", report.productType]);
+                if (report.quantity) stockData.push(["Quantity", report.quantity]);
+
+                autoTable(doc, {
+                    startY: yPosition,
+                    head: [["Field", "Value"]],
+                    body: stockData,
+                    theme: "grid",
+                    headStyles: { fillColor: [228, 0, 43] },
+                    margin: { left: 15, right: 15 },
+                });
+
+                yPosition = doc.lastAutoTable.finalY + 10;
+            }
+
+            // Date Information
+            doc.setFontSize(14);
+            doc.text("Date Information", 15, yPosition);
+            yPosition += 8;
+
+            autoTable(doc, {
+                startY: yPosition,
+                head: [["Field", "Value"]],
+                body: [
+                    ["Submitted On", formatDate(report.dateOfSubmission || report.createdAt)],
+                    ["Submitted By", report.submittedBy?.role || "N/A"],
+                ],
+                theme: "grid",
+                headStyles: { fillColor: [228, 0, 43] },
+                margin: { left: 15, right: 15 },
+            });
+
+            yPosition = doc.lastAutoTable.finalY + 10;
+
+            // Remarks
+            if (report.remarks) {
+                doc.setFontSize(14);
+                doc.text("Remarks", 15, yPosition);
+                yPosition += 8;
+
+                doc.setFontSize(11);
+                const remarksLines = doc.splitTextToSize(report.remarks, 180);
+                doc.text(remarksLines, 15, yPosition);
+                yPosition += remarksLines.length * 7 + 10;
+            }
+
+            // Shop Display Images
+            if (report.reportType === "Window Display" &&
+                report.shopDisplayImages &&
+                report.shopDisplayImages.length > 0) {
+
+                doc.addPage();
+                yPosition = 20;
+
+                doc.setFontSize(14);
+                doc.setTextColor(0, 0, 0);
+                doc.text("Shop Display Images", 15, yPosition);
+                yPosition += 10;
+
+                for (let i = 0; i < report.shopDisplayImages.length; i++) {
+                    const imageUrl = getImageSource(report.shopDisplayImages[i]);
+
+                    if (imageUrl) {
+                        if (i > 0 && i % 2 === 0) {
+                            doc.addPage();
+                            yPosition = 20;
+                        }
+
+                        try {
+                            if (imageUrl.startsWith('http')) {
+                                const response = await fetch(imageUrl);
+                                const blob = await response.blob();
+                                const base64 = await new Promise((resolve) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => resolve(reader.result);
+                                    reader.readAsDataURL(blob);
+                                });
+                                doc.addImage(base64, 'JPEG', 15, yPosition, 180, 120);
+                            } else {
+                                doc.addImage(imageUrl, 'JPEG', 15, yPosition, 180, 120);
+                            }
+
+                            doc.setFontSize(10);
+                            doc.text(`Image ${i + 1}`, 15, yPosition + 125);
+                            yPosition += 135;
+                        } catch (err) {
+                            console.error(`Error adding image ${i + 1}:`, err);
+                        }
+                    }
+                }
+            }
+
+            // Bill Copies
+            if (report.reportType === "Stock" &&
+                report.billCopies &&
+                report.billCopies.length > 0) {
+
+                doc.addPage();
+                yPosition = 20;
+
+                doc.setFontSize(14);
+                doc.setTextColor(0, 0, 0);
+                doc.text("Bill Copies", 15, yPosition);
+                yPosition += 10;
+
+                for (let i = 0; i < report.billCopies.length; i++) {
+                    const imageUrl = getImageSource(report.billCopies[i]);
+
+                    if (imageUrl) {
+                        if (i > 0 && i % 2 === 0) {
+                            doc.addPage();
+                            yPosition = 20;
+                        }
+
+                        try {
+                            if (imageUrl.startsWith('http')) {
+                                const response = await fetch(imageUrl);
+                                const blob = await response.blob();
+                                const base64 = await new Promise((resolve) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => resolve(reader.result);
+                                    reader.readAsDataURL(blob);
+                                });
+                                doc.addImage(base64, 'JPEG', 15, yPosition, 180, 120);
+                            } else {
+                                doc.addImage(imageUrl, 'JPEG', 15, yPosition, 180, 120);
+                            }
+
+                            doc.setFontSize(10);
+                            const fileName = report.billCopies[i].fileName || report.billCopies[i].originalName || `Bill ${i + 1}`;
+                            doc.text(fileName, 15, yPosition + 125);
+                            yPosition += 135;
+                        } catch (err) {
+                            console.error(`Error adding bill ${i + 1}:`, err);
+                        }
+                    }
+                }
+            }
+
+            // Other Files
+            if (report.reportType === "Others" &&
+                report.files &&
+                report.files.length > 0) {
+
+                doc.addPage();
+                yPosition = 20;
+
+                doc.setFontSize(14);
+                doc.setTextColor(0, 0, 0);
+                doc.text("Other Files", 15, yPosition);
+                yPosition += 10;
+
+                for (let i = 0; i < report.files.length; i++) {
+                    const imageUrl = getImageSource(report.files[i]);
+
+                    if (imageUrl) {
+                        if (i > 0 && i % 2 === 0) {
+                            doc.addPage();
+                            yPosition = 20;
+                        }
+
+                        try {
+                            if (imageUrl.startsWith('http')) {
+                                const response = await fetch(imageUrl);
+                                const blob = await response.blob();
+                                const base64 = await new Promise((resolve) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => resolve(reader.result);
+                                    reader.readAsDataURL(blob);
+                                });
+                                doc.addImage(base64, 'JPEG', 15, yPosition, 180, 120);
+                            } else {
+                                doc.addImage(imageUrl, 'JPEG', 15, yPosition, 180, 120);
+                            }
+
+                            doc.setFontSize(10);
+                            doc.text(`File ${i + 1}`, 15, yPosition + 125);
+                            yPosition += 135;
+                        } catch (err) {
+                            console.error(`Error adding file ${i + 1}:`, err);
+                        }
+                    }
+                }
+            }
+
+            // Save PDF
+            const fileName = `Report_${report.reportType || "Unknown"}_${report.retailer?.outletCode || "Unknown"}_${new Date().toISOString().split("T")[0]}.pdf`;
+            doc.save(fileName);
+
+            toast.success("Report downloaded successfully!", { theme: "dark" });
+        } catch (error) {
+            console.error("Error generating PDF:", error);
+            toast.error("Failed to download report", { theme: "dark" });
+        }
+    };
+
     const handleImageChange = (e) => {
         const newFiles = Array.from(e.target.files || []);
         if (newFiles.length > 0) {
             setImages((prevFiles) => [...prevFiles, ...newFiles]);
+
+            // Create and track preview URLs
+            const newPreviews = newFiles.map((file) => {
+                const url = URL.createObjectURL(file);
+                previewUrlsRef.current.images.push(url);
+                return url;
+            });
+            setImagePreviews((prev) => [...prev, ...newPreviews]);
         }
         e.target.value = "";
     };
 
     const removeImage = (index) => {
+        // Revoke URL before removing
+        const urlToRevoke = imagePreviews[index];
+        try {
+            URL.revokeObjectURL(urlToRevoke);
+            previewUrlsRef.current.images = previewUrlsRef.current.images.filter(u => u !== urlToRevoke);
+        } catch (e) {}
+        
         setImages((prevFiles) => prevFiles.filter((_, i) => i !== index));
+        setImagePreviews((prev) => prev.filter((_, i) => i !== index));
     };
 
+    // ✅ FIX: Don't revoke URLs for current images (Cloudinary URLs)
     const removeCurrentImage = (index) => {
         setRemovedImageIndices((prev) => [...prev, index]);
     };
@@ -116,14 +517,31 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
         const newFiles = Array.from(e.target.files || []);
         if (newFiles.length > 0) {
             setBillCopies((prevFiles) => [...prevFiles, ...newFiles]);
+
+            // Create and track preview URLs
+            const newPreviews = newFiles.map((file) => {
+                const url = URL.createObjectURL(file);
+                previewUrlsRef.current.bills.push(url);
+                return url;
+            });
+            setBillCopyPreviews((prev) => [...prev, ...newPreviews]);
         }
         e.target.value = "";
     };
 
     const removeBill = (index) => {
+        // Revoke URL before removing
+        const urlToRevoke = billCopyPreviews[index];
+        try {
+            URL.revokeObjectURL(urlToRevoke);
+            previewUrlsRef.current.bills = previewUrlsRef.current.bills.filter(u => u !== urlToRevoke);
+        } catch (e) {}
+        
         setBillCopies((prevFiles) => prevFiles.filter((_, i) => i !== index));
+        setBillCopyPreviews((prev) => prev.filter((_, i) => i !== index));
     };
 
+    // ✅ FIX: Don't revoke URLs for current bills (Cloudinary URLs)
     const removeCurrentBill = (index) => {
         setRemovedBillIndices((prev) => [...prev, index]);
     };
@@ -132,14 +550,31 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
         const newFiles = Array.from(e.target.files || []);
         if (newFiles.length > 0) {
             setFiles((prevFiles) => [...prevFiles, ...newFiles]);
+
+            // Create and track preview URLs
+            const newPreviews = newFiles.map((file) => {
+                const url = URL.createObjectURL(file);
+                previewUrlsRef.current.files.push(url);
+                return url;
+            });
+            setFilePreviews((prev) => [...prev, ...newPreviews]);
         }
         e.target.value = "";
     };
 
     const removeFile = (index) => {
+        // Revoke URL before removing
+        const urlToRevoke = filePreviews[index];
+        try {
+            URL.revokeObjectURL(urlToRevoke);
+            previewUrlsRef.current.files = previewUrlsRef.current.files.filter(u => u !== urlToRevoke);
+        } catch (e) {}
+        
         setFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
+        setFilePreviews((prev) => prev.filter((_, i) => i !== index));
     };
 
+    // ✅ FIX: Don't revoke URLs for current files (Cloudinary URLs)
     const removeCurrentFile = (index) => {
         setRemovedFileIndices((prev) => [...prev, index]);
     };
@@ -155,13 +590,10 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
         setIsSaving(true);
 
         const formData = new FormData();
-
-        // Append basic fields
         formData.append("reportType", reportType.value);
         if (frequency) formData.append("frequency", frequency.value);
         if (remarks) formData.append("remarks", remarks);
 
-        // ✅ Send removed indices to backend
         if (removedImageIndices.length > 0) {
             formData.append("removedImageIndices", JSON.stringify(removedImageIndices));
         }
@@ -172,7 +604,6 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
             formData.append("removedFileIndices", JSON.stringify(removedFileIndices));
         }
 
-        // Append stock fields (if stock type)
         if (reportType?.value === "Stock") {
             if (stockType) formData.append("stockType", stockType.value);
             if (brand) formData.append("brand", brand);
@@ -181,38 +612,31 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
             if (productType) formData.append("productType", productType.value);
             if (quantity) formData.append("quantity", quantity);
 
-            // Handle bill copies - ONLY append new uploads
             if (billCopies.length > 0) {
-                billCopies.forEach((file) => formData.append("billCopies", file));
+                billCopies.forEach((file) => {
+                    formData.append("billCopies", file);
+                });
             }
         }
 
-        // Append images for Window Display - ONLY append new uploads
         if (reportType?.value === "Window Display" && images.length > 0) {
-            images.forEach((image) => formData.append("shopDisplayImages", image));
+            images.forEach((image) => {
+                formData.append("shopDisplayImages", image);
+            });
         }
 
-        // Append files for Others - ONLY append new uploads
         if (reportType?.value === "Others" && files.length > 0) {
-            files.forEach((file) => formData.append("files", file));
+            files.forEach((file) => {
+                formData.append("files", file);
+            });
         }
 
         try {
-            console.log("📤 Sending update for report:", report._id);
-
-            // ✅ Call the parent's onUpdate function
             await onUpdate(report._id, formData);
-
-            console.log("✅ Update complete, closing modal");
-
-            // ✅ Exit edit mode
             setIsEditing(false);
-
-            // ✅ Close the modal (parent will handle refresh)
             onClose();
-
         } catch (error) {
-            console.error("❌ Failed to update report:", error);
+            console.error("Failed to update report", error);
             alert("Failed to update report. Please try again.");
         } finally {
             setIsSaving(false);
@@ -223,60 +647,59 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
         try {
             await onDelete(report._id);
         } catch (error) {
-            console.error("Failed to delete report:", error);
+            console.error("Failed to delete report", error);
             alert("Failed to delete report. Please try again.");
         }
     };
 
+    // ✅ FIX: Reset edit mode properly
     useEffect(() => {
         if (isEditing) {
-            setReportType(
-                reportTypes.find((rt) => rt.value === report.reportType) || null
-            );
-            setFrequency(
-                frequencyOptions.find((f) => f.value === report.frequency) || null
-            );
-            setStockType(
-                stockTypeOptions.find((st) => st.value === report.stockType) || null
-            );
-            setProductType(
-                productTypeOptions.find((pt) => pt.value === report.productType) ||
-                null
-            );
+            // Reset form state
+            setReportType(reportTypes.find((rt) => rt.value === report.reportType) || null);
+            setFrequency(frequencyOptions.find((f) => f.value === report.frequency) || null);
+            setStockType(stockTypeOptions.find((st) => st.value === report.stockType) || null);
+            setProductType(productTypeOptions.find((pt) => pt.value === report.productType) || null);
             setBrand(report.brand || "");
             setProduct(report.product || "");
             setSku(report.sku || "");
             setQuantity(report.quantity || "");
             setRemarks(report.remarks || "");
+            
+            // Clear new uploads
             setImages([]);
             setBillCopies([]);
             setFiles([]);
+            
+            // Clear removal indices
             setRemovedImageIndices([]);
             setRemovedBillIndices([]);
             setRemovedFileIndices([]);
-        }
-    }, [isEditing, report]);
 
-    // Helper function to convert Buffer to base64
-    const bufferToBase64 = (buffer, contentType) => {
-        if (!buffer || !buffer.data) return null;
+            // ✅ FIX: Clean up any existing blob URLs before resetting
+            previewUrlsRef.current.images.forEach(url => {
+                try { URL.revokeObjectURL(url); } catch (e) {}
+            });
+            previewUrlsRef.current.bills.forEach(url => {
+                try { URL.revokeObjectURL(url); } catch (e) {}
+            });
+            previewUrlsRef.current.files.forEach(url => {
+                try { URL.revokeObjectURL(url); } catch (e) {}
+            });
+            
+            // Reset tracking
+            previewUrlsRef.current = {
+                images: [],
+                bills: [],
+                files: []
+            };
 
-        try {
-            if (buffer.type === "Buffer" && Array.isArray(buffer.data)) {
-                const base64 = btoa(
-                    buffer.data.reduce(
-                        (data, byte) => data + String.fromCharCode(byte),
-                        ""
-                    )
-                );
-                return `data:${contentType || "image/jpeg"};base64,${base64}`;
-            }
-            return null;
-        } catch (error) {
-            console.error("Error converting buffer to base64:", error);
-            return null;
+            // Reset preview states
+            setImagePreviews([]);
+            setBillCopyPreviews([]);
+            setFilePreviews([]);
         }
-    };
+    }, [isEditing]);
 
     return (
         <div
@@ -297,6 +720,15 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                             <div className="flex items-center gap-3">
                                 {!isEditing ? (
                                     <>
+                                        <button
+                                            onClick={handleDownloadPDF}
+                                            className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                            Download PDF
+                                        </button>
                                         <button
                                             onClick={() => setIsEditing(true)}
                                             className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition"
@@ -321,9 +753,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                         </button>
                                         <button
                                             onClick={() => {
-                                                if (
-                                                    window.confirm("Discard all changes?")
-                                                ) {
+                                                if (window.confirm("Discard all changes?")) {
                                                     setIsEditing(false);
                                                 }
                                             }}
@@ -346,7 +776,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                     {/* Content */}
                     <div className="p-6">
                         {isEditing ? (
-                            // EDIT MODE
+                            /* EDIT MODE */
                             <form className="space-y-6">
                                 {/* Campaign Info - Read Only */}
                                 <div className="bg-gray-50 p-4 rounded-lg border-l-4 border-blue-500">
@@ -355,28 +785,16 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                                         <div>
-                                            <span className="font-medium text-gray-600">
-                                                Campaign:
-                                            </span>
-                                            <p className="text-gray-800">
-                                                {report.campaignId?.name || "N/A"}
-                                            </p>
+                                            <span className="font-medium text-gray-600">Campaign: </span>
+                                            <p className="text-gray-800">{report.campaignId?.name || "N/A"}</p>
                                         </div>
                                         <div>
-                                            <span className="font-medium text-gray-600">
-                                                Type:
-                                            </span>
-                                            <p className="text-gray-800">
-                                                {report.campaignId?.type || "N/A"}
-                                            </p>
+                                            <span className="font-medium text-gray-600">Type: </span>
+                                            <p className="text-gray-800">{report.campaignId?.type || "N/A"}</p>
                                         </div>
                                         <div>
-                                            <span className="font-medium text-gray-600">
-                                                Client:
-                                            </span>
-                                            <p className="text-gray-800">
-                                                {report.campaignId?.client || "N/A"}
-                                            </p>
+                                            <span className="font-medium text-gray-600">Client: </span>
+                                            <p className="text-gray-800">{report.campaignId?.client || "N/A"}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -391,15 +809,10 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                             {report.retailer?.retailerName || "N/A"}
                                         </p>
                                         <p className="text-sm text-gray-600">
-                                            {report.retailer?.outletName} •{" "}
-                                            {report.retailer?.outletCode}
+                                            {report.retailer?.outletName} - {report.retailer?.outletCode}
                                         </p>
                                         <p className="text-sm text-gray-500">
-                                            {report.retailer?.retailerId?.shopDetails
-                                                ?.shopAddress?.city || "N/A"}
-                                            ,{" "}
-                                            {report.retailer?.retailerId?.shopDetails
-                                                ?.shopAddress?.state || "N/A"}
+                                            {report.retailer?.retailerId?.shopDetails?.shopAddress?.city || "N/A"}, {report.retailer?.retailerId?.shopDetails?.shopAddress?.state || "N/A"}
                                         </p>
                                     </div>
                                 </div>
@@ -428,9 +841,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
 
                                 {/* Report Type */}
                                 <div>
-                                    <label className="block font-medium mb-2">
-                                        Type of Report *
-                                    </label>
+                                    <label className="block font-medium mb-2">Type of Report</label>
                                     <Select
                                         styles={customSelectStyles}
                                         options={reportTypes}
@@ -443,9 +854,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
 
                                 {/* Frequency */}
                                 <div>
-                                    <label className="block font-medium mb-2">
-                                        Frequency
-                                    </label>
+                                    <label className="block font-medium mb-2">Frequency</label>
                                     <Select
                                         styles={customSelectStyles}
                                         options={frequencyOptions}
@@ -465,9 +874,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                         </h3>
 
                                         <div>
-                                            <label className="block font-medium mb-2">
-                                                Stock Type
-                                            </label>
+                                            <label className="block font-medium mb-2">Stock Type</label>
                                             <Select
                                                 styles={customSelectStyles}
                                                 options={stockTypeOptions}
@@ -480,29 +887,21 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block font-medium mb-2">
-                                                    Brand
-                                                </label>
+                                                <label className="block font-medium mb-2">Brand</label>
                                                 <input
                                                     type="text"
                                                     value={brand}
-                                                    onChange={(e) =>
-                                                        setBrand(e.target.value)
-                                                    }
+                                                    onChange={(e) => setBrand(e.target.value)}
                                                     className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#E4002B] focus:outline-none"
                                                     placeholder="Brand"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block font-medium mb-2">
-                                                    Product
-                                                </label>
+                                                <label className="block font-medium mb-2">Product</label>
                                                 <input
                                                     type="text"
                                                     value={product}
-                                                    onChange={(e) =>
-                                                        setProduct(e.target.value)
-                                                    }
+                                                    onChange={(e) => setProduct(e.target.value)}
                                                     className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#E4002B] focus:outline-none"
                                                     placeholder="Product"
                                                 />
@@ -511,9 +910,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block font-medium mb-2">
-                                                    SKU
-                                                </label>
+                                                <label className="block font-medium mb-2">SKU</label>
                                                 <input
                                                     type="text"
                                                     value={sku}
@@ -523,9 +920,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block font-medium mb-2">
-                                                    Product Type
-                                                </label>
+                                                <label className="block font-medium mb-2">Product Type</label>
                                                 <Select
                                                     styles={customSelectStyles}
                                                     options={productTypeOptions}
@@ -538,99 +933,62 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                         </div>
 
                                         <div>
-                                            <label className="block font-medium mb-2">
-                                                Quantity
-                                            </label>
+                                            <label className="block font-medium mb-2">Quantity</label>
                                             <input
                                                 type="number"
                                                 value={quantity}
-                                                onChange={(e) =>
-                                                    setQuantity(e.target.value)
-                                                }
+                                                onChange={(e) => setQuantity(e.target.value)}
                                                 className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#E4002B] focus:outline-none"
                                                 placeholder="Quantity"
                                             />
                                         </div>
 
                                         {/* Current Bill Copies */}
-                                        {report.billCopies &&
-                                            report.billCopies.length > 0 && (
-                                                <div className="mb-4">
-                                                    <p className="text-sm font-medium text-gray-600 mb-2">
-                                                        Current Bill Copies (
-                                                        {
-                                                            report.billCopies.filter(
-                                                                (_, idx) =>
-                                                                    !removedBillIndices.includes(
-                                                                        idx
-                                                                    )
-                                                            ).length
-                                                        }
-                                                        ):
-                                                    </p>
-                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                                        {report.billCopies.map(
-                                                            (bill, idx) => {
-                                                                if (
-                                                                    removedBillIndices.includes(
-                                                                        idx
-                                                                    )
-                                                                )
-                                                                    return null;
+                                        {report.billCopies && report.billCopies.length > 0 && (
+                                            <div className="mb-4">
+                                                <p className="text-sm font-medium text-gray-600 mb-2">
+                                                    Current Bill Copies ({report.billCopies.filter((_, idx) => !removedBillIndices.includes(idx)).length})
+                                                </p>
+                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                    {report.billCopies.map((bill, idx) => {
+                                                        // Skip if marked for removal
+                                                        if (removedBillIndices.includes(idx)) return null;
 
-                                                                const imageSource =
-                                                                    bufferToBase64(
-                                                                        bill.data,
-                                                                        bill.contentType
-                                                                    );
-                                                                if (!imageSource)
-                                                                    return null;
+                                                        // Get Cloudinary URL (not blob URL)
+                                                        const imageSource = getImageSource(bill);
 
-                                                                return (
-                                                                    <div
-                                                                        key={idx}
-                                                                        className="relative group"
-                                                                    >
-                                                                        <img
-                                                                            src={imageSource}
-                                                                            alt={`Bill ${idx + 1
-                                                                                }`}
-                                                                            className="w-full h-32 object-cover rounded border"
-                                                                        />
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() =>
-                                                                                removeCurrentBill(
-                                                                                    idx
-                                                                                )
-                                                                            }
-                                                                            className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                        >
-                                                                            ×
-                                                                        </button>
-                                                                    </div>
-                                                                );
-                                                            }
-                                                        )}
-                                                    </div>
+                                                        // Skip if no valid URL
+                                                        if (!imageSource) return null;
+
+                                                        return (
+                                                            <div key={idx} className="relative group">
+                                                                <img
+                                                                    src={imageSource}  // ✅ This is a Cloudinary URL
+                                                                    alt={`Bill ${idx + 1}`}
+                                                                    className="w-full h-32 object-cover rounded border"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeCurrentBill(idx)}  // ✅ Just marks for removal
+                                                                    className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                >
+                                                                    &times;
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
-                                            )}
+                                            </div>
+                                        )}
 
                                         {/* New Bill Copy Upload */}
                                         <div>
                                             <label className="block font-medium mb-2">
-                                                {billCopies.length > 0
-                                                    ? "Add More Bill Copies"
-                                                    : "Upload Bill Copies"}
+                                                {billCopies.length > 0 ? "Add More Bill Copies" : "Upload Bill Copies"}
                                             </label>
                                             <label className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-[#E4002B]">
-                                                <span className="text-3xl text-gray-400">
-                                                    +
-                                                </span>
-                                                <span>
-                                                    Click to upload bill copies (multiple
-                                                    allowed)
-                                                </span>
+                                                <span className="text-3xl text-gray-400">+</span>
+                                                <span>Click to upload bill copies (multiple allowed)</span>
                                                 <input
                                                     type="file"
                                                     accept="image/*"
@@ -643,26 +1001,18 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                             {billCopies.length > 0 && (
                                                 <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2">
                                                     {billCopies.map((file, index) => (
-                                                        <div
-                                                            key={index}
-                                                            className="relative group"
-                                                        >
+                                                        <div key={index} className="relative group">
                                                             <img
-                                                                src={URL.createObjectURL(
-                                                                    file
-                                                                )}
+                                                                src={billCopyPreviews[index]}
                                                                 className="w-full h-32 object-cover rounded border"
-                                                                alt={`New Bill ${index + 1
-                                                                    }`}
+                                                                alt={`New Bill ${index + 1}`}
                                                             />
                                                             <button
                                                                 type="button"
                                                                 className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                onClick={() =>
-                                                                    removeBill(index)
-                                                                }
+                                                                onClick={() => removeBill(index)}
                                                             >
-                                                                ×
+                                                                &times;
                                                             </button>
                                                         </div>
                                                     ))}
@@ -674,9 +1024,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
 
                                 {/* Remarks */}
                                 <div>
-                                    <label className="block font-medium mb-2">
-                                        Remarks
-                                    </label>
+                                    <label className="block font-medium mb-2">Remarks</label>
                                     <textarea
                                         value={remarks}
                                         onChange={(e) => setRemarks(e.target.value)}
@@ -689,79 +1037,44 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                 {/* WINDOW DISPLAY - Images */}
                                 {reportType?.value === "Window Display" && (
                                     <div>
-                                        {report.shopDisplayImages &&
-                                            report.shopDisplayImages.length > 0 && (
-                                                <div className="mb-4">
-                                                    <p className="text-sm font-medium text-gray-600 mb-2">
-                                                        Current Images (
-                                                        {
-                                                            report.shopDisplayImages.filter(
-                                                                (_, idx) =>
-                                                                    !removedImageIndices.includes(
-                                                                        idx
-                                                                    )
-                                                            ).length
-                                                        }
-                                                        ):
-                                                    </p>
-                                                    <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                                                        {report.shopDisplayImages.map(
-                                                            (img, idx) => {
-                                                                if (
-                                                                    removedImageIndices.includes(
-                                                                        idx
-                                                                    )
-                                                                )
-                                                                    return null;
+                                        {report.shopDisplayImages && report.shopDisplayImages.length > 0 && (
+                                            <div className="mb-4">
+                                                <p className="text-sm font-medium text-gray-600 mb-2">
+                                                    Current Images ({report.shopDisplayImages.filter((_, idx) => !removedImageIndices.includes(idx)).length})
+                                                </p>
+                                                <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                                                    {report.shopDisplayImages.map((img, idx) => {
+                                                        if (removedImageIndices.includes(idx)) return null;
 
-                                                                const imageSource =
-                                                                    bufferToBase64(
-                                                                        img.data,
-                                                                        img.contentType
-                                                                    );
-                                                                if (!imageSource)
-                                                                    return null;
+                                                        const imageSource = getImageSource(img);
+                                                        if (!imageSource) return null;
 
-                                                                return (
-                                                                    <div
-                                                                        key={idx}
-                                                                        className="relative group"
-                                                                    >
-                                                                        <img
-                                                                            src={imageSource}
-                                                                            alt={`Current ${idx + 1
-                                                                                }`}
-                                                                            className="w-full h-20 object-cover rounded border"
-                                                                        />
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() =>
-                                                                                removeCurrentImage(
-                                                                                    idx
-                                                                                )
-                                                                            }
-                                                                            className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                        >
-                                                                            ×
-                                                                        </button>
-                                                                    </div>
-                                                                );
-                                                            }
-                                                        )}
-                                                    </div>
+                                                        return (
+                                                            <div key={idx} className="relative group">
+                                                                <img
+                                                                    src={imageSource}
+                                                                    alt={`Current ${idx + 1}`}
+                                                                    className="w-full h-20 object-cover rounded border"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeCurrentImage(idx)}
+                                                                    className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                >
+                                                                    &times;
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
-                                            )}
+                                            </div>
+                                        )}
 
                                         <label className="block font-medium mb-2">
-                                            {report.shopDisplayImages &&
-                                                report.shopDisplayImages.length > 0
-                                                ? "Add More Images"
-                                                : "Upload Images"}
+                                            {report.shopDisplayImages && report.shopDisplayImages.length > 0 ? "Add More Images" : "Upload Images"}
                                         </label>
                                         <label className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-[#E4002B]">
-                                            <span className="text-3xl text-gray-400">
-                                                +
-                                            </span>
+                                            <span className="text-3xl text-gray-400">+</span>
                                             <span>Click to upload new images</span>
                                             <input
                                                 type="file"
@@ -780,7 +1093,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                                         className="relative border-2 border-dashed rounded-lg overflow-hidden bg-gray-50 group"
                                                     >
                                                         <img
-                                                            src={URL.createObjectURL(file)}
+                                                            src={imagePreviews[index]}
                                                             className="w-full h-32 object-cover"
                                                             alt={`preview-${index}`}
                                                         />
@@ -789,7 +1102,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                                             onClick={() => removeImage(index)}
                                                             className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full p-1"
                                                         >
-                                                            ×
+                                                            &times;
                                                         </button>
                                                     </div>
                                                 ))}
@@ -804,38 +1117,17 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                         {report.files && report.files.length > 0 && (
                                             <div className="mb-4">
                                                 <p className="text-sm font-medium text-gray-600 mb-2">
-                                                    Current Files (
-                                                    {
-                                                        report.files.filter(
-                                                            (_, idx) =>
-                                                                !removedFileIndices.includes(
-                                                                    idx
-                                                                )
-                                                        ).length
-                                                    }
-                                                    ):
+                                                    Current Files ({report.files.filter((_, idx) => !removedFileIndices.includes(idx)).length})
                                                 </p>
                                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                                                     {report.files.map((file, idx) => {
-                                                        if (
-                                                            removedFileIndices.includes(
-                                                                idx
-                                                            )
-                                                        )
-                                                            return null;
+                                                        if (removedFileIndices.includes(idx)) return null;
 
-                                                        const imageSource =
-                                                            bufferToBase64(
-                                                                file.data,
-                                                                file.contentType
-                                                            );
+                                                        const imageSource = getImageSource(file);
                                                         if (!imageSource) return null;
 
                                                         return (
-                                                            <div
-                                                                key={idx}
-                                                                className="relative group"
-                                                            >
+                                                            <div key={idx} className="relative group">
                                                                 <img
                                                                     src={imageSource}
                                                                     alt={`File ${idx + 1}`}
@@ -843,12 +1135,10 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                                                 />
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() =>
-                                                                        removeCurrentFile(idx)
-                                                                    }
+                                                                    onClick={() => removeCurrentFile(idx)}
                                                                     className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                                                                 >
-                                                                    ×
+                                                                    &times;
                                                                 </button>
                                                             </div>
                                                         );
@@ -858,14 +1148,10 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                         )}
 
                                         <label className="block font-medium mb-2">
-                                            {report.files && report.files.length > 0
-                                                ? "Add More Files"
-                                                : "Upload Files"}
+                                            {report.files && report.files.length > 0 ? "Add More Files" : "Upload Files"}
                                         </label>
                                         <label className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-[#E4002B]">
-                                            <span className="text-3xl text-gray-400">
-                                                +
-                                            </span>
+                                            <span className="text-3xl text-gray-400">+</span>
                                             <span>Click to upload files</span>
                                             <input
                                                 type="file"
@@ -879,12 +1165,9 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                         {files.length > 0 && (
                                             <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2">
                                                 {files.map((file, index) => (
-                                                    <div
-                                                        key={index}
-                                                        className="relative group"
-                                                    >
+                                                    <div key={index} className="relative group">
                                                         <img
-                                                            src={URL.createObjectURL(file)}
+                                                            src={filePreviews[index]}
                                                             className="w-full h-32 object-cover rounded border"
                                                             alt={`New File ${index + 1}`}
                                                         />
@@ -893,7 +1176,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                                             className="absolute top-1 right-1 bg-[#E4002B] text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                                                             onClick={() => removeFile(index)}
                                                         >
-                                                            ×
+                                                            &times;
                                                         </button>
                                                     </div>
                                                 ))}
@@ -903,7 +1186,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                 )}
                             </form>
                         ) : (
-                            // VIEW MODE
+                            /* VIEW MODE */
                             <div className="space-y-6">
                                 {/* Basic Info */}
                                 <div className="bg-gray-50 p-4 rounded-lg">
@@ -1008,8 +1291,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                                 Contact
                                             </label>
                                             <p className="text-gray-800 bg-white px-3 py-2 rounded">
-                                                {report.retailer?.retailerId
-                                                    ?.contactNo || "N/A"}
+                                                {report.retailer?.retailerId?.contactNo || "N/A"}
                                             </p>
                                         </div>
                                     </div>
@@ -1073,7 +1355,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                                 <label className="block text-sm font-medium text-gray-600 mb-1">
                                                     Attendance Status
                                                 </label>
-                                                <p className={`px-3 py-2 rounded bg-white text-gray-800`}>
+                                                <p className="px-3 py-2 rounded bg-white text-gray-800">
                                                     {report.attendedVisit === "yes" ? "Attended" : "Not Attended"}
                                                 </p>
                                             </div>
@@ -1087,16 +1369,17 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                                             {report.reasonForNonAttendance.reason || "N/A"}
                                                         </p>
                                                     </div>
-                                                    {report.reasonForNonAttendance.reason === "others" && report.reasonForNonAttendance.otherReason && (
-                                                        <div className="md:col-span-2">
-                                                            <label className="block text-sm font-medium text-gray-600 mb-1">
-                                                                Additional Details
-                                                            </label>
-                                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
-                                                                {report.reasonForNonAttendance.otherReason}
-                                                            </p>
-                                                        </div>
-                                                    )}
+                                                    {report.reasonForNonAttendance.reason === "others" &&
+                                                        report.reasonForNonAttendance.otherReason && (
+                                                            <div className="md:col-span-2">
+                                                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                                                    Additional Details
+                                                                </label>
+                                                                <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                                    {report.reasonForNonAttendance.otherReason}
+                                                                </p>
+                                                            </div>
+                                                        )}
                                                 </>
                                             )}
                                         </div>
@@ -1105,10 +1388,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
 
                                 {/* Product/Stock Info */}
                                 {report.reportType === "Stock" &&
-                                    (report.brand ||
-                                        report.product ||
-                                        report.sku ||
-                                        report.stockType) && (
+                                    (report.brand || report.product || report.sku || report.stockType) && (
                                         <div className="bg-gray-50 p-4 rounded-lg">
                                             <h3 className="text-lg font-semibold mb-4 text-gray-700">
                                                 Product/Stock Information
@@ -1189,10 +1469,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                                 Submitted On
                                             </label>
                                             <p className="text-gray-800 bg-white px-3 py-2 rounded">
-                                                {formatDate(
-                                                    report.dateOfSubmission ||
-                                                    report.createdAt
-                                                )}
+                                                {formatDate(report.dateOfSubmission || report.createdAt)}
                                             </p>
                                         </div>
                                     </div>
@@ -1210,62 +1487,48 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                     </div>
                                 )}
 
-                                {/* Shop Display Images */}
+                                {/* ✅ UPDATED: Shop Display Images - Cloudinary Compatible */}
                                 {report.reportType === "Window Display" &&
                                     report.shopDisplayImages &&
                                     report.shopDisplayImages.length > 0 && (
                                         <div className="bg-gray-50 p-4 rounded-lg">
                                             <h3 className="text-lg font-semibold mb-4 text-gray-700">
-                                                Shop Display Images (
-                                                {report.shopDisplayImages.length})
+                                                Shop Display Images ({report.shopDisplayImages.length})
                                             </h3>
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                                {report.shopDisplayImages.map(
-                                                    (img, idx) => {
-                                                        const imageSource =
-                                                            bufferToBase64(
-                                                                img.data,
-                                                                img.contentType
-                                                            );
-                                                        if (!imageSource) return null;
+                                                {report.shopDisplayImages.map((img, idx) => {
+                                                    const imageSource = getImageSource(img);
+                                                    if (!imageSource) return null;
 
-                                                        return (
-                                                            <div
-                                                                key={idx}
-                                                                className="relative bg-black rounded-lg overflow-hidden"
-                                                                style={{ height: "200px" }}
-                                                            >
-                                                                <img
-                                                                    src={imageSource}
-                                                                    alt={`Display ${idx + 1}`}
-                                                                    className="w-full h-full object-contain"
-                                                                />
-                                                            </div>
-                                                        );
-                                                    }
-                                                )}
+                                                    return (
+                                                        <div
+                                                            key={idx}
+                                                            className="relative bg-black rounded-lg overflow-hidden"
+                                                            style={{ height: "200px" }}
+                                                        >
+                                                            <img
+                                                                src={imageSource}
+                                                                alt={`Display ${idx + 1}`}
+                                                                className="w-full h-full object-contain"
+                                                            />
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     )}
 
-                                {/* Bill Copies */}
+                                {/* ✅ UPDATED: Bill Copies - Cloudinary Compatible */}
                                 {report.reportType === "Stock" &&
                                     report.billCopies &&
                                     report.billCopies.length > 0 && (
                                         <div className="bg-gray-50 p-4 rounded-lg">
                                             <h3 className="text-lg font-semibold mb-4 text-gray-700">
-                                                Bill{" "}
-                                                {report.billCopies.length > 1
-                                                    ? "Copies"
-                                                    : "Copy"}{" "}
-                                                ({report.billCopies.length})
+                                                Bill {report.billCopies.length > 1 ? "Copies" : "Copy"} ({report.billCopies.length})
                                             </h3>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 {report.billCopies.map((bill, idx) => {
-                                                    const imageSource = bufferToBase64(
-                                                        bill.data,
-                                                        bill.contentType
-                                                    );
+                                                    const imageSource = getImageSource(bill);
                                                     if (!imageSource) return null;
 
                                                     return (
@@ -1280,8 +1543,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                                                 className="w-full h-full object-contain"
                                                             />
                                                             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
-                                                                {bill.fileName ||
-                                                                    `Bill ${idx + 1}`}
+                                                                {bill.fileName || `Bill ${idx + 1}`}
                                                             </div>
                                                         </div>
                                                     );
@@ -1290,7 +1552,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                         </div>
                                     )}
 
-                                {/* Other Files */}
+                                {/* ✅ UPDATED: Other Files - Cloudinary Compatible */}
                                 {report.reportType === "Others" &&
                                     report.files &&
                                     report.files.length > 0 && (
@@ -1300,10 +1562,7 @@ const ReportDetailsModal = ({ report, onClose, onUpdate, onDelete }) => {
                                             </h3>
                                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                                                 {report.files.map((file, idx) => {
-                                                    const imageSource = bufferToBase64(
-                                                        file.data,
-                                                        file.contentType
-                                                    );
+                                                    const imageSource = getImageSource(file);
                                                     if (!imageSource) return null;
 
                                                     return (

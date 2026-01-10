@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { API_URL } from "../../url/base";
 import {
   FaUser,
   FaPhoneAlt,
@@ -13,8 +14,6 @@ import {
   FaTimes,
 } from "react-icons/fa";
 import { IoClose } from "react-icons/io5";
-
-const API_URL = "https://conceptpromotions.in/api";
 
 const states = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
@@ -115,12 +114,21 @@ const FileInput = ({ label, accept = "*", file, setFile, required = false, exist
   const fileRef = useRef();
   const [preview, setPreview] = useState(existingImageUrl || null);
 
+  // ✅ NEW: Track blob URLs for cleanup
+  const blobUrlRef = useRef(null);
+
+  // ✅ NEW: Cleanup blob URL on unmount
   useEffect(() => {
     return () => {
-      if (file?.preview) URL.revokeObjectURL(file.preview);
+      if (blobUrlRef.current) {
+        try {
+          URL.revokeObjectURL(blobUrlRef.current);
+        } catch (e) { }
+      }
     };
-  }, [file]);
+  }, []);
 
+  // Original useEffect - KEEP THIS
   useEffect(() => {
     if (existingImageUrl) {
       setPreview(existingImageUrl);
@@ -134,7 +142,20 @@ const FileInput = ({ label, accept = "*", file, setFile, required = false, exist
       setPreview(existingImageUrl);
       return;
     }
-    const newPreview = f.type.startsWith("image/") ? URL.createObjectURL(f) : null;
+
+    // ✅ NEW: Revoke previous blob URL if exists
+    if (blobUrlRef.current) {
+      try {
+        URL.revokeObjectURL(blobUrlRef.current);
+      } catch (e) { }
+    }
+
+    // ✅ MODIFIED: Track the blob URL
+    const newPreview = f.type.startsWith("image") ? URL.createObjectURL(f) : null;
+    if (newPreview) {
+      blobUrlRef.current = newPreview;
+    }
+
     setFile({ raw: f, preview: newPreview, name: f.name });
     setPreview(newPreview);
   }
@@ -144,7 +165,7 @@ const FileInput = ({ label, accept = "*", file, setFile, required = false, exist
   return (
     <div>
       <label className="block text-sm font-medium mb-1">
-        {label}
+        {label} {required && <span className="text-red-500">*</span>}
       </label>
       <div
         className="relative flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-[#E4002B] transition"
@@ -170,6 +191,15 @@ const FileInput = ({ label, accept = "*", file, setFile, required = false, exist
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+
+                // ✅ NEW: Revoke blob URL if removing new file
+                if (blobUrlRef.current) {
+                  try {
+                    URL.revokeObjectURL(blobUrlRef.current);
+                  } catch (e) { }
+                  blobUrlRef.current = null;
+                }
+
                 setFile(null);
                 setPreview(null);
                 if (fileRef.current) fileRef.current.value = "";
@@ -180,17 +210,18 @@ const FileInput = ({ label, accept = "*", file, setFile, required = false, exist
             </button>
           </div>
         )}
-        <input
-          ref={fileRef}
-          type="file"
-          accept={accept}
-          onChange={handleFileChange}
-          className="hidden"
-        />
       </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept={accept}
+        onChange={handleFileChange}
+        className="hidden"
+      />
     </div>
   );
 };
+
 
 
 /* ========================================
@@ -384,15 +415,6 @@ const Profile = () => {
       fetchEmployeeDocuments();
     }
   }, [loading]);
-
-  // ✅ NEW: Cleanup blob URLs on unmount
-  useEffect(() => {
-    return () => {
-      Object.values(imageUrls).forEach((url) => {
-        URL.revokeObjectURL(url);
-      });
-    };
-  }, [imageUrls]);
 
   const fetchEmployeeProfile = async () => {
     try {
@@ -588,25 +610,30 @@ const Profile = () => {
         const hasKey = `has${type.charAt(0).toUpperCase() + type.slice(1)}`;
 
         if (status[hasKey]) {
-          // Create blob URL for each existing image
-          const imageResponse = await fetch(
-            `${API_URL}/employee/employee/document/${type}`,
-            {
+          try {
+            // ✅ MODIFIED: Fetch Cloudinary URL from backend
+            const imageResponse = await fetch(`${API_URL}/employee/employee/document/${type}`, {
               headers: {
                 Authorization: `Bearer ${token}`,
               },
-            }
-          );
+            });
 
-          if (imageResponse.ok) {
-            const blob = await imageResponse.blob();
-            urls[type] = URL.createObjectURL(blob);
+            if (imageResponse.ok) {
+              const data = await imageResponse.json();
+
+              // ✅ NEW: Store Cloudinary URL directly (not blob URL)
+              if (data.url || data.secure_url) {
+                urls[type] = data.secure_url || data.url;
+              }
+            }
+          } catch (err) {
+            console.error(`Error fetching ${type}:`, err);
           }
         }
       }
 
       setImageUrls(urls);
-      console.log("✅ Documents fetched successfully", urls);
+      console.log("✅ Documents fetched successfully:", urls);
     } catch (error) {
       console.error("Error fetching employee documents:", error);
     } finally {

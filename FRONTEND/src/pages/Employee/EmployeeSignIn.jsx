@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { FaEnvelope, FaLock } from "react-icons/fa";
 import { IoEyeOffOutline, IoEyeOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
-
+import { API_URL } from "../../url/base";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -21,7 +21,7 @@ const EmployeeSignIn = () => {
 
     try {
       const response = await fetch(
-        "https://conceptpromotions.in/api/employee/employee/login",
+        `${API_URL}/employee/employee/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

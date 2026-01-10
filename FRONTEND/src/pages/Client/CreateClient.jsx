@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Select from "react-select";
+import { API_URL } from "../../url/base";
 import {
   FaEnvelope,
   FaUser,
@@ -250,7 +251,7 @@ const CreateClient = () => {
       }
 
       const response = await fetch(
-        "https://conceptpromotions.in/api/admin/add-client-admin",
+        `${API_URL}/admin/add-client-admin`,
         {
           method: "POST",
           headers: {

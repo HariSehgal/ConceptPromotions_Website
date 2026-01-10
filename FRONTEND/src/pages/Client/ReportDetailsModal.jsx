@@ -1,19 +1,7 @@
 import React from "react";
-
-const customSelectStyles = {
-    control: (provided, state) => ({
-        ...provided,
-        borderColor: state.isFocused ? "#E4002B" : "#d1d5db",
-        boxShadow: state.isFocused ? "0 0 0 1px #E4002B" : "none",
-        "&:hover": { borderColor: "#E4002B" },
-    }),
-    option: (provided, state) => ({
-        ...provided,
-        backgroundColor: state.isFocused ? "#FEE2E2" : "white",
-        color: "#333",
-        "&:active": { backgroundColor: "#FECACA" },
-    }),
-};
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { toast } from "react-toastify";
 
 const ReportDetailsModal = ({ report, onClose }) => {
     if (!report) return null;
@@ -33,22 +21,296 @@ const ReportDetailsModal = ({ report, onClose }) => {
         }
     };
 
-    const bufferToBase64 = (buffer, contentType) => {
-        if (!buffer || !buffer.data) return null;
+    // ✅ UPDATED: Extract URL from Cloudinary object structure
+    const getImageUrl = (imageData) => {
+        if (!imageData) return null;
+
+        // If it's already a string URL
+        if (typeof imageData === "string") {
+            return imageData;
+        }
+
+        // If it's an object with url property (your backend format)
+        if (typeof imageData === "object" && imageData.url) {
+            return imageData.url;
+        }
+
+        // If it's an object with secure_url property (alternative Cloudinary format)
+        if (typeof imageData === "object" && imageData.secure_url) {
+            return imageData.secure_url;
+        }
+
+        return null;
+    };
+
+    // ✅ Convert Cloudinary URL to base64 for PDF
+    const getBase64FromUrl = async (url) => {
         try {
-            if (buffer.type === "Buffer" && Array.isArray(buffer.data)) {
-                const base64 = btoa(
-                    buffer.data.reduce(
-                        (data, byte) => data + String.fromCharCode(byte),
-                        ""
-                    )
-                );
-                return `data:${contentType || "image/jpeg"};base64,${base64}`;
-            }
-            return null;
+            const response = await fetch(url);
+            const blob = await response.blob();
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
         } catch (error) {
-            console.error("Error converting buffer to base64:", error);
+            console.error("Error converting URL to base64:", error);
             return null;
+        }
+    };
+
+    // ✅ PDF DOWNLOAD FUNCTION WITH CLOUDINARY IMAGES
+    const handleDownloadPDF = async () => {
+        try {
+            const doc = new jsPDF();
+            let yPosition = 20;
+
+            // Title
+            doc.setFontSize(18);
+            doc.setTextColor(228, 0, 43);
+            doc.text("REPORT DETAILS", 105, yPosition, { align: "center" });
+            yPosition += 15;
+
+            // Basic Information
+            doc.setFontSize(14);
+            doc.setTextColor(0, 0, 0);
+            doc.text("Basic Information", 15, yPosition);
+            yPosition += 8;
+
+            autoTable(doc, {
+                startY: yPosition,
+                head: [['Field', 'Value']],
+                body: [
+                    ['Report Type', report.reportType || 'N/A'],
+                    ['Frequency', report.frequency || 'N/A'],
+                ],
+                theme: 'grid',
+                headStyles: { fillColor: [228, 0, 43] },
+                margin: { left: 15, right: 15 },
+            });
+
+            yPosition = doc.lastAutoTable.finalY + 10;
+
+            // Campaign Information
+            doc.setFontSize(14);
+            doc.text("Campaign Information", 15, yPosition);
+            yPosition += 8;
+
+            autoTable(doc, {
+                startY: yPosition,
+                head: [['Field', 'Value']],
+                body: [
+                    ['Campaign Name', report.campaignId?.name || 'N/A'],
+                    ['Campaign Type', report.campaignId?.type || 'N/A'],
+                    ['Client', report.campaignId?.client || 'N/A'],
+                ],
+                theme: 'grid',
+                headStyles: { fillColor: [228, 0, 43] },
+                margin: { left: 15, right: 15 },
+            });
+
+            yPosition = doc.lastAutoTable.finalY + 10;
+
+            // Retailer Information
+            doc.setFontSize(14);
+            doc.text("Retailer Information", 15, yPosition);
+            yPosition += 8;
+
+            autoTable(doc, {
+                startY: yPosition,
+                head: [['Field', 'Value']],
+                body: [
+                    ['Retailer Name', report.retailer?.retailerName || 'N/A'],
+                    ['Outlet Code', report.retailer?.outletCode || 'N/A'],
+                    ['Outlet Name', report.retailer?.outletName || 'N/A'],
+                    ['Contact', report.retailer?.retailerId?.contactNo || 'N/A'],
+                ],
+                theme: 'grid',
+                headStyles: { fillColor: [228, 0, 43] },
+                margin: { left: 15, right: 15 },
+            });
+
+            yPosition = doc.lastAutoTable.finalY + 10;
+
+            // Product/Stock Information
+            if (report.reportType === "Stock" &&
+                (report.brand || report.product || report.sku || report.stockType)) {
+
+                doc.setFontSize(14);
+                doc.text("Product/Stock Information", 15, yPosition);
+                yPosition += 8;
+
+                const stockData = [];
+                if (report.stockType) stockData.push(['Stock Type', report.stockType]);
+                if (report.brand) stockData.push(['Brand', report.brand]);
+                if (report.product) stockData.push(['Product', report.product]);
+                if (report.sku) stockData.push(['SKU', report.sku]);
+                if (report.productType) stockData.push(['Product Type', report.productType]);
+                if (report.quantity) stockData.push(['Quantity', report.quantity]);
+
+                autoTable(doc, {
+                    startY: yPosition,
+                    head: [['Field', 'Value']],
+                    body: stockData,
+                    theme: 'grid',
+                    headStyles: { fillColor: [228, 0, 43] },
+                    margin: { left: 15, right: 15 },
+                });
+
+                yPosition = doc.lastAutoTable.finalY + 10;
+            }
+
+            // Date Information
+            doc.setFontSize(14);
+            doc.text("Date Information", 15, yPosition);
+            yPosition += 8;
+
+            autoTable(doc, {
+                startY: yPosition,
+                head: [['Field', 'Value']],
+                body: [
+                    ['Submitted On', formatDate(report.dateOfSubmission || report.createdAt)],
+                ],
+                theme: 'grid',
+                headStyles: { fillColor: [228, 0, 43] },
+                margin: { left: 15, right: 15 },
+            });
+
+            yPosition = doc.lastAutoTable.finalY + 10;
+
+            // Remarks
+            if (report.remarks) {
+                doc.setFontSize(14);
+                doc.text("Remarks", 15, yPosition);
+                yPosition += 8;
+
+                doc.setFontSize(11);
+                const remarksLines = doc.splitTextToSize(report.remarks, 180);
+                doc.text(remarksLines, 15, yPosition);
+                yPosition += remarksLines.length * 7 + 10;
+            }
+
+            // ✅ UPDATED: Shop Display Images from Cloudinary
+            if (report.reportType === "Window Display" && 
+                report.shopDisplayImages && 
+                report.shopDisplayImages.length > 0) {
+                
+                doc.addPage();
+                yPosition = 20;
+
+                doc.setFontSize(14);
+                doc.setTextColor(0, 0, 0);
+                doc.text("Shop Display Images", 15, yPosition);
+                yPosition += 10;
+
+                for (let i = 0; i < report.shopDisplayImages.length; i++) {
+                    const imageUrl = getImageUrl(report.shopDisplayImages[i]);
+
+                    if (imageUrl) {
+                        if (i > 0 && i % 2 === 0) {
+                            doc.addPage();
+                            yPosition = 20;
+                        }
+
+                        try {
+                            const base64Image = await getBase64FromUrl(imageUrl);
+                            if (base64Image) {
+                                doc.addImage(base64Image, 'JPEG', 15, yPosition, 180, 120);
+                                doc.setFontSize(10);
+                                doc.text(`Image ${i + 1}`, 15, yPosition + 125);
+                                yPosition += 135;
+                            }
+                        } catch (err) {
+                            console.error(`Error adding image ${i + 1}:`, err);
+                        }
+                    }
+                }
+            }
+
+            // ✅ UPDATED: Bill Copies from Cloudinary
+            if (report.reportType === "Stock" && 
+                report.billCopies && 
+                report.billCopies.length > 0) {
+                
+                doc.addPage();
+                yPosition = 20;
+
+                doc.setFontSize(14);
+                doc.setTextColor(0, 0, 0);
+                doc.text("Bill Copies", 15, yPosition);
+                yPosition += 10;
+
+                for (let i = 0; i < report.billCopies.length; i++) {
+                    const billUrl = getImageUrl(report.billCopies[i]);
+
+                    if (billUrl) {
+                        if (i > 0 && i % 2 === 0) {
+                            doc.addPage();
+                            yPosition = 20;
+                        }
+
+                        try {
+                            const base64Image = await getBase64FromUrl(billUrl);
+                            if (base64Image) {
+                                doc.addImage(base64Image, 'JPEG', 15, yPosition, 180, 120);
+                                doc.setFontSize(10);
+                                const fileName = report.billCopies[i].fileName || `Bill ${i + 1}`;
+                                doc.text(fileName, 15, yPosition + 125);
+                                yPosition += 135;
+                            }
+                        } catch (err) {
+                            console.error(`Error adding bill ${i + 1}:`, err);
+                        }
+                    }
+                }
+            }
+
+            // ✅ UPDATED: Other Files from Cloudinary
+            if (report.reportType === "Others" && 
+                report.files && 
+                report.files.length > 0) {
+                
+                doc.addPage();
+                yPosition = 20;
+
+                doc.setFontSize(14);
+                doc.setTextColor(0, 0, 0);
+                doc.text("Other Files", 15, yPosition);
+                yPosition += 10;
+
+                for (let i = 0; i < report.files.length; i++) {
+                    const fileUrl = getImageUrl(report.files[i]);
+
+                    if (fileUrl) {
+                        if (i > 0 && i % 2 === 0) {
+                            doc.addPage();
+                            yPosition = 20;
+                        }
+
+                        try {
+                            const base64Image = await getBase64FromUrl(fileUrl);
+                            if (base64Image) {
+                                doc.addImage(base64Image, 'JPEG', 15, yPosition, 180, 120);
+                                doc.setFontSize(10);
+                                doc.text(`File ${i + 1}`, 15, yPosition + 125);
+                                yPosition += 135;
+                            }
+                        } catch (err) {
+                            console.error(`Error adding file ${i + 1}:`, err);
+                        }
+                    }
+                }
+            }
+
+            // Save PDF
+            const fileName = `Report_${report.reportType}_${report.retailer?.outletCode || 'Unknown'}_${new Date().toISOString().split('T')[0]}.pdf`;
+            doc.save(fileName);
+
+            toast.success("Report downloaded successfully!", { theme: "dark" });
+        } catch (error) {
+            console.error("Error generating PDF:", error);
+            toast.error("Failed to download report. Try again.", { theme: "dark" });
         }
     };
 
@@ -68,12 +330,25 @@ const ReportDetailsModal = ({ report, onClose }) => {
                             <h2 className="text-2xl font-bold text-[#E4002B]">
                                 Report Details
                             </h2>
-                            <button
-                                onClick={onClose}
-                                className="text-gray-500 hover:text-gray-700 ml-2"
-                            >
-                                <span className="text-2xl">&times;</span>
-                            </button>
+
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={handleDownloadPDF}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2 cursor-pointer"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Download PDF
+                                </button>
+
+                                <button
+                                    onClick={onClose}
+                                    className="text-gray-500 hover:text-gray-700"
+                                >
+                                    <span className="text-2xl">&times;</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -90,7 +365,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                         <label className="block text-sm font-medium text-gray-600 mb-1">
                                             Report Type
                                         </label>
-                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                        <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                             {report.reportType || "N/A"}
                                         </p>
                                     </div>
@@ -99,7 +374,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                             <label className="block text-sm font-medium text-gray-600 mb-1">
                                                 Frequency
                                             </label>
-                                            <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                            <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                                 {report.frequency}
                                             </p>
                                         </div>
@@ -117,7 +392,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                         <label className="block text-sm font-medium text-gray-600 mb-1">
                                             Campaign Name
                                         </label>
-                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                        <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                             {report.campaignId?.name || "N/A"}
                                         </p>
                                     </div>
@@ -125,7 +400,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                         <label className="block text-sm font-medium text-gray-600 mb-1">
                                             Campaign Type
                                         </label>
-                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                        <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                             {report.campaignId?.type || "N/A"}
                                         </p>
                                     </div>
@@ -133,7 +408,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                         <label className="block text-sm font-medium text-gray-600 mb-1">
                                             Client
                                         </label>
-                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                        <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                             {report.campaignId?.client || "N/A"}
                                         </p>
                                     </div>
@@ -150,7 +425,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                         <label className="block text-sm font-medium text-gray-600 mb-1">
                                             Retailer Name
                                         </label>
-                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                        <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                             {report.retailer?.retailerName || "N/A"}
                                         </p>
                                     </div>
@@ -158,7 +433,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                         <label className="block text-sm font-medium text-gray-600 mb-1">
                                             Outlet Code
                                         </label>
-                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                        <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                             {report.retailer?.outletCode || "N/A"}
                                         </p>
                                     </div>
@@ -166,7 +441,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                         <label className="block text-sm font-medium text-gray-600 mb-1">
                                             Outlet Name
                                         </label>
-                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                        <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                             {report.retailer?.outletName || "N/A"}
                                         </p>
                                     </div>
@@ -174,7 +449,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                         <label className="block text-sm font-medium text-gray-600 mb-1">
                                             Contact
                                         </label>
-                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                        <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                             {report.retailer?.retailerId?.contactNo || "N/A"}
                                         </p>
                                     </div>
@@ -197,7 +472,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                                     <label className="block text-sm font-medium text-gray-600 mb-1">
                                                         Stock Type
                                                     </label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                                         {report.stockType}
                                                     </p>
                                                 </div>
@@ -207,7 +482,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                                     <label className="block text-sm font-medium text-gray-600 mb-1">
                                                         Brand
                                                     </label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                                         {report.brand}
                                                     </p>
                                                 </div>
@@ -217,7 +492,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                                     <label className="block text-sm font-medium text-gray-600 mb-1">
                                                         Product
                                                     </label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                                         {report.product}
                                                     </p>
                                                 </div>
@@ -227,7 +502,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                                     <label className="block text-sm font-medium text-gray-600 mb-1">
                                                         SKU
                                                     </label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                                         {report.sku}
                                                     </p>
                                                 </div>
@@ -237,7 +512,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                                     <label className="block text-sm font-medium text-gray-600 mb-1">
                                                         Product Type
                                                     </label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                                         {report.productType}
                                                     </p>
                                                 </div>
@@ -247,7 +522,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                                     <label className="block text-sm font-medium text-gray-600 mb-1">
                                                         Quantity
                                                     </label>
-                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                                    <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                                         {report.quantity}
                                                     </p>
                                                 </div>
@@ -266,7 +541,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                         <label className="block text-sm font-medium text-gray-600 mb-1">
                                             Submitted On
                                         </label>
-                                        <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                        <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                             {formatDate(
                                                 report.dateOfSubmission || report.createdAt
                                             )}
@@ -281,13 +556,13 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                     <h3 className="text-lg font-semibold mb-4 text-gray-700">
                                         Remarks
                                     </h3>
-                                    <p className="text-gray-800 bg-white px-3 py-2 rounded">
+                                    <p className="text-gray-800 bg-white px-3 py-2 rounded border">
                                         {report.remarks}
                                     </p>
                                 </div>
                             )}
 
-                            {/* Shop Display Images */}
+                            {/* ✅ UPDATED: Shop Display Images with Cloudinary */}
                             {report.reportType === "Window Display" &&
                                 report.shopDisplayImages &&
                                 report.shopDisplayImages.length > 0 && (
@@ -296,24 +571,25 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                             Shop Display Images ({report.shopDisplayImages.length})
                                         </h3>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                            {report.shopDisplayImages.map((img, idx) => {
-                                                const imageSource = bufferToBase64(
-                                                    img.data,
-                                                    img.contentType
-                                                );
-                                                if (!imageSource) return null;
+                                            {report.shopDisplayImages.map((imageData, idx) => {
+                                                const imageUrl = getImageUrl(imageData);
+                                                if (!imageUrl) return null;
 
                                                 return (
                                                     <div
                                                         key={idx}
-                                                        className="relative bg-black rounded-lg overflow-hidden"
+                                                        className="relative bg-black rounded-lg overflow-hidden group"
                                                         style={{ height: "200px" }}
                                                     >
                                                         <img
-                                                            src={imageSource}
+                                                            src={imageUrl}
                                                             alt={`Display ${idx + 1}`}
-                                                            className="w-full h-full object-contain"
+                                                            className="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform"
+                                                            onClick={() => window.open(imageUrl, '_blank')}
                                                         />
+                                                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            {imageData.fileName || `Image ${idx + 1}`}
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
@@ -321,7 +597,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                     </div>
                                 )}
 
-                            {/* Bill Copies */}
+                            {/* ✅ UPDATED: Bill Copies with Cloudinary */}
                             {report.reportType === "Stock" &&
                                 report.billCopies &&
                                 report.billCopies.length > 0 && (
@@ -331,26 +607,24 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                             {report.billCopies.length})
                                         </h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {report.billCopies.map((bill, idx) => {
-                                                const imageSource = bufferToBase64(
-                                                    bill.data,
-                                                    bill.contentType
-                                                );
-                                                if (!imageSource) return null;
+                                            {report.billCopies.map((billData, idx) => {
+                                                const billUrl = getImageUrl(billData);
+                                                if (!billUrl) return null;
 
                                                 return (
                                                     <div
                                                         key={idx}
-                                                        className="relative bg-black rounded-lg overflow-hidden"
+                                                        className="relative bg-black rounded-lg overflow-hidden group"
                                                         style={{ height: "300px" }}
                                                     >
                                                         <img
-                                                            src={imageSource}
+                                                            src={billUrl}
                                                             alt={`Bill Copy ${idx + 1}`}
-                                                            className="w-full h-full object-contain"
+                                                            className="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform"
+                                                            onClick={() => window.open(billUrl, '_blank')}
                                                         />
-                                                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
-                                                            {bill.fileName || `Bill ${idx + 1}`}
+                                                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            {billData.fileName || `Bill ${idx + 1}`}
                                                         </div>
                                                     </div>
                                                 );
@@ -359,7 +633,7 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                     </div>
                                 )}
 
-                            {/* Other Files */}
+                            {/* ✅ UPDATED: Other Files with Cloudinary */}
                             {report.reportType === "Others" &&
                                 report.files &&
                                 report.files.length > 0 && (
@@ -368,24 +642,25 @@ const ReportDetailsModal = ({ report, onClose }) => {
                                             Files ({report.files.length})
                                         </h3>
                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                            {report.files.map((file, idx) => {
-                                                const imageSource = bufferToBase64(
-                                                    file.data,
-                                                    file.contentType
-                                                );
-                                                if (!imageSource) return null;
+                                            {report.files.map((fileData, idx) => {
+                                                const fileUrl = getImageUrl(fileData);
+                                                if (!fileUrl) return null;
 
                                                 return (
                                                     <div
                                                         key={idx}
-                                                        className="relative bg-black rounded-lg overflow-hidden"
+                                                        className="relative bg-black rounded-lg overflow-hidden group"
                                                         style={{ height: "200px" }}
                                                     >
                                                         <img
-                                                            src={imageSource}
+                                                            src={fileUrl}
                                                             alt={`File ${idx + 1}`}
-                                                            className="w-full h-full object-contain"
+                                                            className="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform"
+                                                            onClick={() => window.open(fileUrl, '_blank')}
                                                         />
+                                                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            {fileData.fileName || `File ${idx + 1}`}
+                                                        </div>
                                                     </div>
                                                 );
                                             })}

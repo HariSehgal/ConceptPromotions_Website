@@ -6,6 +6,7 @@ import {
   FaRupeeSign,
   FaPen,
 } from "react-icons/fa";
+import { API_URL } from "../../url/base";
 
 const UpdateJob = ({ onEditJob }) => {
   const [jobs, setJobs] = useState([]);
@@ -26,7 +27,7 @@ const UpdateJob = ({ onEditJob }) => {
       }
 
       const response = await fetch(
-        "https://conceptpromotions.in/api/admin/jobs",
+        `${API_URL}/admin/jobs`,
         {
           headers: {
             "Content-Type": "application/json",

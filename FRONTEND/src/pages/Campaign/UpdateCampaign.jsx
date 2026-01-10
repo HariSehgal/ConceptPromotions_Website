@@ -1,19 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { FaPen } from "react-icons/fa";
+import { API_URL } from "../../url/base";
 
 const UpdateCampaign = ({ onEdit }) => {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const API = "https://conceptpromotions.in/api/admin/campaigns";
-
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
 
-      const res = await fetch(API, {
+      const res = await fetch(`${API_URL}/admin/campaigns`, {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,

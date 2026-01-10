@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { FaCheck, FaTimes } from "react-icons/fa";
 import axios from "axios";
 import CampaignDetails from "./CampaignDetails";
+import { API_URL } from "../../url/base";
 
 const EmployeeCampaign = () => {
   const [campaigns, setCampaigns] = useState([]);
@@ -11,8 +12,6 @@ const EmployeeCampaign = () => {
   const [updatingCampaign, setUpdatingCampaign] = useState(null);
   const [filter, setFilter] = useState('all');
   const [selectedCampaign, setSelectedCampaign] = useState(null);
-
-  const API_BASE_URL = "https://conceptpromotions.in/api/employee/employee";
 
   // Get employee status from campaign (now it's added by backend)
   const getEmployeeStatus = (campaign) => {
@@ -25,7 +24,7 @@ const EmployeeCampaign = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const token = localStorage.getItem("token");
       if (!token) {
         setError("No authentication token found. Please login.");
@@ -33,16 +32,16 @@ const EmployeeCampaign = () => {
         return;
       }
 
-      const response = await axios.get(`${API_BASE_URL}/campaigns`, {
+      const response = await axios.get(`${API_URL}/employee/employee/campaigns`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       const fetchedCampaigns = response.data.campaigns || [];
       setAllCampaigns(fetchedCampaigns);
-      
+
       // Apply filter on frontend
       filterCampaigns(fetchedCampaigns, filter);
-      
+
     } catch (err) {
       console.error("Fetch campaigns error:", err);
       if (err.response?.status === 401) {
@@ -73,16 +72,16 @@ const EmployeeCampaign = () => {
     try {
       setUpdatingCampaign(campaignId);
       const token = localStorage.getItem("token");
-      
+
       await axios.put(
-        `${API_BASE_URL}/campaigns/${campaignId}/status`,
+        `${API_URL}/employee/employee/campaigns/${campaignId}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       // Refresh campaigns list after successful update
       await fetchCampaigns();
-      
+
     } catch (err) {
       console.error("Update status error:", err);
       const errorMsg = err.response?.data?.message || err.message;
@@ -127,10 +126,10 @@ const EmployeeCampaign = () => {
   return (
     <div>
       {selectedCampaign ? (
-        <CampaignDetails 
-          campaignId={selectedCampaign._id} 
+        <CampaignDetails
+          campaignId={selectedCampaign._id}
           campaign={selectedCampaign}
-          onBack={() => setSelectedCampaign(null)} 
+          onBack={() => setSelectedCampaign(null)}
         />
       ) : (
         <>
@@ -146,11 +145,10 @@ const EmployeeCampaign = () => {
               <button
                 key={tab}
                 onClick={() => setFilter(tab)}
-                className={`px-4 py-2 font-medium text-sm transition-colors capitalize ${
-                  filter === tab
+                className={`px-4 py-2 font-medium text-sm transition-colors capitalize ${filter === tab
                     ? 'border-b-2 border-[#E4002B] text-[#E4002B]'
                     : 'text-gray-600 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 {tab}
               </button>
@@ -161,7 +159,7 @@ const EmployeeCampaign = () => {
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-6">
               {error}
-              <button 
+              <button
                 onClick={fetchCampaigns}
                 className="ml-4 text-red-600 hover:underline font-medium"
               >
@@ -181,8 +179,8 @@ const EmployeeCampaign = () => {
           {campaigns.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-600">
-                {filter === 'all' 
-                  ? 'No campaigns assigned.' 
+                {filter === 'all'
+                  ? 'No campaigns assigned.'
                   : `No ${filter} campaigns found.`}
               </p>
             </div>
@@ -190,7 +188,7 @@ const EmployeeCampaign = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
               {campaigns.map((campaign) => {
                 const status = getEmployeeStatus(campaign);
-                
+
                 return (
                   <div
                     key={campaign._id}
@@ -276,9 +274,8 @@ const EmployeeCampaign = () => {
                       {status === 'pending' && (
                         <div className="flex gap-2">
                           <button
-                            className={`flex-1 flex items-center justify-center gap-1 bg-green-600 text-white py-2 rounded-md text-sm hover:bg-green-700 transition ${
-                              updatingCampaign === campaign._id ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
+                            className={`flex-1 flex items-center justify-center gap-1 bg-green-600 text-white py-2 rounded-md text-sm hover:bg-green-700 transition ${updatingCampaign === campaign._id ? 'opacity-50 cursor-not-allowed' : ''
+                              }`}
                             onClick={() => updateCampaignStatus(campaign._id, "accepted")}
                             disabled={updatingCampaign === campaign._id}
                           >
@@ -292,9 +289,8 @@ const EmployeeCampaign = () => {
                           </button>
 
                           <button
-                            className={`flex-1 flex items-center justify-center gap-1 bg-red-600 text-white py-2 rounded-md text-sm hover:bg-red-700 transition ${
-                              updatingCampaign === campaign._id ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
+                            className={`flex-1 flex items-center justify-center gap-1 bg-red-600 text-white py-2 rounded-md text-sm hover:bg-red-700 transition ${updatingCampaign === campaign._id ? 'opacity-50 cursor-not-allowed' : ''
+                              }`}
                             onClick={() => updateCampaignStatus(campaign._id, "rejected")}
                             disabled={updatingCampaign === campaign._id}
                           >

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { API_URL } from "../../url/base";
 
 const JobDetails = ({ jobId, onBack }) => {
   const [job, setJob] = useState(null);
@@ -13,7 +14,7 @@ const JobDetails = ({ jobId, onBack }) => {
       const token = localStorage.getItem("token");
 
       const res = await fetch(
-        `https://conceptpromotions.in/api/admin/career/jobs/${jobId}`,
+        `${API_URL}/admin/career/jobs/${jobId}`,
         {
           method: "GET",
           headers: {
@@ -49,7 +50,7 @@ const JobDetails = ({ jobId, onBack }) => {
       const token = localStorage.getItem("token");
 
       const res = await fetch(
-        `https://conceptpromotions.in/api/admin/jobs/${jobId}`,
+        `${API_URL}/admin/jobs/${jobId}`,
         {
           method: "PUT",
           headers: {

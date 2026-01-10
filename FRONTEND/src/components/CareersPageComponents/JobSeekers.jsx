@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { API_URL } from "../../url/base";
 import {
   FaUser,
   FaPhoneAlt,
@@ -32,7 +33,7 @@ const JobSeekers = () => {
 
   // Fetch job roles
   useEffect(() => {
-    fetch("https://conceptpromotions.in/api/career/jobs")
+    fetch(`${API_URL}/career/jobs`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setJobs(data);
@@ -93,7 +94,7 @@ const JobSeekers = () => {
     formData.append("resume", file);
 
     try {
-      const response = await fetch("https://conceptpromotions.in/api/career/apply", {
+      const response = await fetch(`${API_URL}/career/apply`, {
         method: "POST",
         body: formData,
       });

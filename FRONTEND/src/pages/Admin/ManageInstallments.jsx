@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Select from "react-select";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { API_URL } from "../../url/base";
 
 const customSelectStyles = {
     control: (provided, state) => ({
@@ -73,7 +74,7 @@ const ManageInstallments = () => {
 
             // Fetch Campaigns
             const campaignsRes = await fetch(
-                "https://conceptpromotions.in/api/admin/campaigns",
+                `${API_URL}/admin/campaigns`,
                 {
                     headers: { Authorization: `Bearer ${token}` },
                 }
@@ -85,7 +86,7 @@ const ManageInstallments = () => {
 
             // Fetch Retailers
             const retailersRes = await fetch(
-                "https://conceptpromotions.in/api/admin/retailers",
+                `${API_URL}/admin/retailers`,
                 {
                     headers: { Authorization: `Bearer ${token}` },
                 }
@@ -141,7 +142,7 @@ const ManageInstallments = () => {
         try {
             const token = localStorage.getItem("token");
             const response = await fetch(
-                `https://conceptpromotions.in/api/budgets/retailer/${selectedRetailer.value}`,
+                `${API_URL}/budgets/retailer/${selectedRetailer.value}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -428,7 +429,7 @@ const ManageInstallments = () => {
             };
 
             const response = await fetch(
-                "https://conceptpromotions.in/api/budgets/add-payment",
+                `${API_URL}/budgets/add-payment`,
                 {
                     method: "POST",
                     headers: {
@@ -486,7 +487,7 @@ const ManageInstallments = () => {
             };
 
             const response = await fetch(
-                `https://conceptpromotions.in/api/budgets/${budgetData._id}/campaign/${campaignBudget._id}/installment/${editingInstallment._id}`,
+                `${API_URL}/budgets/${budgetData._id}/campaign/${campaignBudget._id}/installment/${editingInstallment._id}`,
                 {
                     method: "PUT",
                     headers: {
@@ -526,7 +527,7 @@ const ManageInstallments = () => {
         try {
             const token = localStorage.getItem("token");
             const response = await fetch(
-                `https://conceptpromotions.in/api/budgets/${budgetData._id}/campaign/${campaignBudget._id}/installment/${installment._id}`,
+                `${API_URL}/budgets/${budgetData._id}/campaign/${campaignBudget._id}/installment/${installment._id}`,
                 {
                     method: "DELETE",
                     headers: {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Select from "react-select";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { API_URL } from "../../url/base";
 
 const customSelectStyles = {
     control: (provided, state) => ({
@@ -74,7 +75,7 @@ const ScheduleUnscheduleTask = () => {
         try {
             const token = localStorage.getItem("token");
             const res = await fetch(
-                "https://conceptpromotions.in/api/admin/campaigns",
+                `${API_URL}/admin/campaigns`,
                 {
                     method: "GET",
                     headers: { Authorization: `Bearer ${token}` },
@@ -114,7 +115,7 @@ const ScheduleUnscheduleTask = () => {
             const token = localStorage.getItem("token");
 
             const res = await fetch(
-                `https://conceptpromotions.in/api/admin/campaign/${selectedCampaign.value}/visit-schedules`,
+                `${API_URL}/admin/campaign/${selectedCampaign.value}/visit-schedules`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
@@ -142,7 +143,7 @@ const ScheduleUnscheduleTask = () => {
             const token = localStorage.getItem("token");
 
             const res = await fetch(
-                "https://conceptpromotions.in/api/admin/visit-schedule/assign",
+                `${API_URL}/admin/visit-schedule/assign`,
                 {
                     method: "POST",
                     headers: {
@@ -179,7 +180,7 @@ const ScheduleUnscheduleTask = () => {
             const token = localStorage.getItem("token");
 
             const res = await fetch(
-                `https://conceptpromotions.in/api/admin/visit-schedule/update/${editingId}`,
+                `${API_URL}/admin/visit-schedule/update/${editingId}`,
                 {
                     method: "PUT",
                     headers: {
@@ -211,7 +212,7 @@ const ScheduleUnscheduleTask = () => {
             const token = localStorage.getItem("token");
 
             const res = await fetch(
-                `https://conceptpromotions.in/api/admin/visit-schedule/delete/${id}`,
+                `${API_URL}/admin/visit-schedule/delete/${id}`,
                 {
                     method: "DELETE",
                     headers: { Authorization: `Bearer ${token}` },
@@ -256,7 +257,7 @@ const ScheduleUnscheduleTask = () => {
 
             // Use the correct endpoint
             const res = await fetch(
-                `https://conceptpromotions.in/api/admin/campaign/${selected.value}/employee-retailer-mapping`,
+                `${API_URL}/admin/campaign/${selected.value}/employee-retailer-mapping`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 

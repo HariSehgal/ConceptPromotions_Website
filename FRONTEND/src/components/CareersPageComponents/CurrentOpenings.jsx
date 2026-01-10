@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { FaMapMarkerAlt, FaBriefcase, FaArrowRight, FaMoneyBill, FaUserTie } from "react-icons/fa";
+import { API_URL } from "../../url/base";
 
 const CurrentOpenings = () => {
   const [jobOpenings, setJobOpenings] = useState([]);
@@ -18,7 +19,7 @@ const CurrentOpenings = () => {
   const fetchJobs = async () => {
     try {
       setLoading(true);
-      const res = await fetch("https://conceptpromotions.in/api/career/jobs");
+      const res = await fetch(`${API_URL}/career/jobs`);
       const data = await res.json();
 
       if (res.ok && data.jobs) {

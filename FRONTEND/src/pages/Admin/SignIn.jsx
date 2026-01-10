@@ -4,6 +4,7 @@ import { IoEyeOffOutline, IoEyeOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { API_URL } from "../../url/base";
 
 const SignIn = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -18,7 +19,7 @@ const SignIn = () => {
 
     try {
       const response = await fetch(
-        "https://conceptpromotions.in/api/admin/login",
+        `${API_URL}/admin/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

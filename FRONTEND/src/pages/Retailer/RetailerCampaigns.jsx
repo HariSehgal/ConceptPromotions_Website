@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { FaCheck, FaTimes } from "react-icons/fa"
 import axios from "axios"
 import CampaignDetails from "./CampaignDetails"
+import { API_URL } from "../../url/base";
 
 const RetailerCampaigns = () => {
   const [campaigns, setCampaigns] = useState([])
@@ -10,8 +11,6 @@ const RetailerCampaigns = () => {
   const [updatingCampaign, setUpdatingCampaign] = useState(null)
   const [filter, setFilter] = useState('all')
   const [selectedCampaign, setSelectedCampaign] = useState(null)
-
-  const API_BASE_URL = "https://conceptpromotions.in/api/retailer"
 
   // Fetch campaigns from backend
   const fetchCampaigns = async () => {
@@ -27,7 +26,7 @@ const RetailerCampaigns = () => {
       }
 
       // Build URL with optional status filter
-      let url = `${API_BASE_URL}/campaigns`
+      let url = `${API_URL}/retailer/campaigns`
       if (filter !== 'all') {
         url += `?status=${filter}`
       }
@@ -57,7 +56,7 @@ const RetailerCampaigns = () => {
       const token = localStorage.getItem("retailer_token")
       
       await axios.put(
-        `${API_BASE_URL}/campaigns/${campaignId}/status`,
+        `${API_URL}/retailer/campaigns/${campaignId}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       )

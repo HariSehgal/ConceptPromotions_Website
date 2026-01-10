@@ -3,6 +3,7 @@ import Select from "react-select";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import ReportDetailsModal from "./ReportDetailsModal";
+import { API_URL } from "../../url/base";
 
 const customSelectStyles = {
     control: (provided, state) => ({
@@ -25,7 +26,6 @@ const customSelectStyles = {
 };
 
 const DetailedReport = () => {
-    const API_BASE_URL = "https://conceptpromotions.in/api";
     const token = localStorage.getItem("client_token");
 
     // Campaign Data
@@ -82,7 +82,7 @@ const DetailedReport = () => {
 
     const fetchCampaigns = async () => {
         try {
-            const res = await fetch(`${API_BASE_URL}/client/client/campaigns`, {
+            const res = await fetch(`${API_URL}/client/client/campaigns`, {
                 method: "GET",
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -100,7 +100,6 @@ const DetailedReport = () => {
             }
 
             setAllCampaigns(data.campaigns || []);
-            toast.success("Campaigns loaded successfully!", { theme: "dark" });
         } catch (err) {
             toast.error("Failed to load campaigns", { theme: "dark" });
         } finally {
@@ -138,7 +137,7 @@ const DetailedReport = () => {
         const stateSet = new Set();
 
         // If a specific campaign is selected, get states from that campaign only
-        const campaignsToProcess = selectedCampaign 
+        const campaignsToProcess = selectedCampaign
             ? filteredCampaigns.filter(c => c._id === selectedCampaign.value)
             : filteredCampaigns;
 
@@ -162,7 +161,7 @@ const DetailedReport = () => {
         const retailersMap = new Map();
 
         // If a specific campaign is selected, get retailers from that campaign only
-        const campaignsToProcess = selectedCampaign 
+        const campaignsToProcess = selectedCampaign
             ? filteredCampaigns.filter(c => c._id === selectedCampaign.value)
             : filteredCampaigns;
 
@@ -226,7 +225,7 @@ const DetailedReport = () => {
             }
 
             const res = await fetch(
-                `${API_BASE_URL}/reports/client-reports?${params.toString()}`,
+                `${API_URL}/reports/client-reports?${params.toString()}`,
                 {
                     method: "GET",
                     headers: {
@@ -265,11 +264,6 @@ const DetailedReport = () => {
                 toast.info("No reports found for the selected filters", {
                     theme: "dark",
                 });
-            } else {
-                toast.success(
-                    `Found ${data.pagination?.total || reports.length} report(s)`,
-                    { theme: "dark" }
-                );
             }
         } catch (err) {
             toast.error("Failed to load reports", { theme: "dark" });
@@ -327,7 +321,7 @@ const DetailedReport = () => {
 
     const handleViewDetails = async (report) => {
         try {
-            const res = await fetch(`${API_BASE_URL}/reports/${report._id}`, {
+            const res = await fetch(`${API_URL}/reports/${report._id}`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     "Content-Type": "application/json",
@@ -590,8 +584,8 @@ const DetailedReport = () => {
                                             <tr
                                                 key={report._id}
                                                 className={`${index % 2 === 0
-                                                        ? "bg-white"
-                                                        : "bg-gray-50"
+                                                    ? "bg-white"
+                                                    : "bg-gray-50"
                                                     } hover:bg-gray-100 transition`}
                                             >
                                                 <td className="px-4 py-3 text-sm text-gray-800 border-b">
@@ -671,8 +665,8 @@ const DetailedReport = () => {
                                                         key={pageNum}
                                                         onClick={() => handlePageChange(pageNum)}
                                                         className={`px-3 py-2 rounded text-sm ${currentPage === pageNum
-                                                                ? "bg-[#E4002B] text-white"
-                                                                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                                                            ? "bg-[#E4002B] text-white"
+                                                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                                                             }`}
                                                     >
                                                         {pageNum}

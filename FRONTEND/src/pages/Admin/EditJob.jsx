@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { FaArrowLeft } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { API_URL } from "../../url/base";
 
 const EditJob = ({ jobId, onBack }) => {  // ✅ receive jobId and onBack as props
   const [loading, setLoading] = useState(true);
@@ -25,7 +26,7 @@ const EditJob = ({ jobId, onBack }) => {  // ✅ receive jobId and onBack as pro
         const token = localStorage.getItem("token");
 
         const res = await fetch(
-          `https://conceptpromotions.in/api/admin/career/jobs/${jobId}`,
+          `${API_URL}/admin/career/jobs/${jobId}`,
           {
             headers: {
               "Content-Type": "application/json",
@@ -81,7 +82,7 @@ const EditJob = ({ jobId, onBack }) => {  // ✅ receive jobId and onBack as pro
       const token = localStorage.getItem("token");
 
       const res = await fetch(
-        `https://conceptpromotions.in/api/admin/jobs/${jobId}`,
+        `${API_URL}/admin/jobs/${jobId}`,
         {
           method: "PUT",
           headers: {

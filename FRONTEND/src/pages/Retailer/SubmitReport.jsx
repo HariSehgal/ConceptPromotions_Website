@@ -2,12 +2,15 @@ import { useState, useEffect } from "react"
 import Select from "react-select"
 import { FiPlus, FiX } from "react-icons/fi"
 import axios from "axios"
+import { API_URL } from "../../url/base";
+
 
 const reportTypes = [
   { value: "Window Display", label: "Window Display" },
   { value: "Stock", label: "Stock" },
   { value: "Others", label: "Others" },
 ]
+
 
 const frequencyOptions = [
   { value: "Daily", label: "Daily" },
@@ -17,6 +20,7 @@ const frequencyOptions = [
   { value: "Adhoc", label: "Adhoc" },
 ]
 
+
 const stockTypeOptions = [
   { value: "Opening Stock", label: "Opening Stock" },
   { value: "Closing Stock", label: "Closing Stock" },
@@ -24,10 +28,12 @@ const stockTypeOptions = [
   { value: "Sold Stock", label: "Sold Stock" },
 ]
 
+
 const productTypeOptions = [
   { value: "Focus", label: "Focus" },
   { value: "All", label: "All" },
 ]
+
 
 const customSelectStyles = {
   control: (provided, state) => ({
@@ -44,6 +50,7 @@ const customSelectStyles = {
   }),
 }
 
+
 // Helper function to get today's date in YYYY-MM-DD format
 const getTodayDate = () => {
   const today = new Date()
@@ -53,10 +60,12 @@ const getTodayDate = () => {
   return `${year}-${month}-${day}`
 }
 
+
 // Helper function to check if file is an image
 const isImageFile = (file) => {
   return file && file.type && file.type.startsWith('image/')
 }
+
 
 const SubmitReport = ({ campaign }) => {
   const [reportType, setReportType] = useState(null)
@@ -72,10 +81,12 @@ const SubmitReport = ({ campaign }) => {
   const [productType, setProductType] = useState(null)
   const [quantity, setQuantity] = useState("")
 
+
   // Files
   const [shopDisplayImages, setShopDisplayImages] = useState([])
   const [billCopies, setBillCopies] = useState([])
   const [otherFiles, setOtherFiles] = useState([])
+
 
   // Retailer info
   const [retailerInfo, setRetailerInfo] = useState(null)
@@ -84,7 +95,6 @@ const SubmitReport = ({ campaign }) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const API_BASE_URL = "https://conceptpromotions.in/api"
 
   // Fetch retailer info and campaign ID on mount
   useEffect(() => {
@@ -94,6 +104,7 @@ const SubmitReport = ({ campaign }) => {
     }
   }, [campaign])
 
+
   const fetchRetailerInfo = async () => {
     try {
       const token = localStorage.getItem("retailer_token")
@@ -102,15 +113,18 @@ const SubmitReport = ({ campaign }) => {
         return
       }
 
-      const response = await fetch(`${API_BASE_URL}/retailer/retailer/me`, {
+
+      const response = await fetch(`${API_URL}/retailer/retailer/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       })
 
+
       if (!response.ok) {
         throw new Error("Failed to load retailer profile")
       }
+
 
       const data = await response.json()
       console.log("Retailer data loaded:", {
@@ -126,11 +140,12 @@ const SubmitReport = ({ campaign }) => {
     }
   }
 
+
   const fetchCampaignId = async () => {
     try {
       const token = localStorage.getItem("retailer_token")
       const response = await axios.get(
-        `${API_BASE_URL}/retailer/campaigns`,
+        `${API_URL}/retailer/campaigns`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -149,36 +164,44 @@ const SubmitReport = ({ campaign }) => {
     }
   }
 
+
   const handleShopImagesChange = (e) => {
     const newFiles = Array.from(e.target.files || [])
     setShopDisplayImages(prev => [...prev, ...newFiles])
   }
+
 
   const handleBillCopiesChange = (e) => {
     const newFiles = Array.from(e.target.files || [])
     setBillCopies(prev => [...prev, ...newFiles])
   }
 
+
   const handleOtherFilesChange = (e) => {
     const newFiles = Array.from(e.target.files || [])
     setOtherFiles(prev => [...prev, ...newFiles])
   }
 
+
   const removeShopImage = (index) => {
     setShopDisplayImages(prev => prev.filter((_, i) => i !== index))
   }
+
 
   const removeBillCopy = (index) => {
     setBillCopies(prev => prev.filter((_, i) => i !== index))
   }
 
+
   const removeOtherFile = (index) => {
     setOtherFiles(prev => prev.filter((_, i) => i !== index))
   }
 
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError("")
+
 
     // Validation
     if (!reportType) {
@@ -202,11 +225,13 @@ const SubmitReport = ({ campaign }) => {
       return
     }
 
+
     // Check if uniqueId exists
     if (!retailerInfo.uniqueId) {
       setError("Retailer unique ID not found. Please contact support.")
       return
     }
+
 
     // Stock validation
     if (reportType.value === "Stock") {
@@ -216,9 +241,11 @@ const SubmitReport = ({ campaign }) => {
       }
     }
 
+
     try {
       setLoading(true)
       const formData = new FormData()
+
 
       // Required fields
       formData.append("reportType", reportType.value)
@@ -226,25 +253,29 @@ const SubmitReport = ({ campaign }) => {
       formData.append("frequency", frequency.value)
       formData.append("dateOfSubmission", dateOfSubmission)
       
-      // Submitter info (Retailer)
+      // Submitter info (Retailer) - Using bracket notation for Cloudinary compatibility
       formData.append("submittedBy[role]", "Retailer")
       formData.append("submittedBy[userId]", retailerInfo._id)
 
-      // Retailer info - using uniqueId as outletCode
+
+      // Retailer info - Using bracket notation for Cloudinary compatibility
       formData.append("retailer[retailerId]", retailerInfo._id)
       formData.append("retailer[outletName]", retailerInfo.shopDetails?.shopName || retailerInfo.name || "")
       formData.append("retailer[retailerName]", retailerInfo.name || "")
       formData.append("retailer[outletCode]", retailerInfo.uniqueId)
+
 
       console.log("Submitting with:", {
         uniqueId: retailerInfo.uniqueId,
         dateOfSubmission: dateOfSubmission
       })
 
+
       // Optional remarks
       if (remarks) {
         formData.append("remarks", remarks)
       }
+
 
       // Stock-specific fields
       if (reportType.value === "Stock") {
@@ -255,32 +286,38 @@ const SubmitReport = ({ campaign }) => {
         formData.append("productType", productType.value)
         formData.append("quantity", quantity)
 
+
+        // Append bill copies - Backend will upload to Cloudinary
         billCopies.forEach((file) => {
           formData.append("billCopies", file)
         })
       }
 
-      // Window Display images
+
+      // Window Display images - Backend will upload to Cloudinary
       if (reportType.value === "Window Display") {
         shopDisplayImages.forEach((file) => {
           formData.append("shopDisplayImages", file)
         })
       }
 
-      // Others files
+
+      // Others files - Backend will upload to Cloudinary
       if (reportType.value === "Others") {
         otherFiles.forEach((file) => {
           formData.append("files", file)
         })
       }
 
+
       const token = localStorage.getItem("retailer_token")
-      const response = await axios.post(`${API_BASE_URL}/reports/create`, formData, {
+      const response = await axios.post(`${API_URL}/reports/create`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
           Authorization: `Bearer ${token}`,
         },
       })
+
 
       if (response.data.success) {
         alert("Report submitted successfully!")
@@ -307,15 +344,18 @@ const SubmitReport = ({ campaign }) => {
     }
   }
 
+
   return (
     <div>
       <h3 className="text-xl font-semibold mb-4 text-[#E4002B]">Submit Report</h3>
+
 
       {/* Display Campaign Name */}
       <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
         <p className="text-sm text-gray-600">Campaign:</p>
         <p className="text-lg font-semibold text-gray-800">{campaign?.name || "Loading..."}</p>
       </div>
+
 
       {/* Display Retailer Info with Unique ID */}
       {retailerInfo && (
@@ -327,11 +367,13 @@ const SubmitReport = ({ campaign }) => {
         </div>
       )}
 
+
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           {error}
         </div>
       )}
+
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Type of Report */}
@@ -347,6 +389,7 @@ const SubmitReport = ({ campaign }) => {
           />
         </div>
 
+
         {/* Frequency */}
         <div>
           <label className="block font-medium mb-1">Frequency *</label>
@@ -359,6 +402,7 @@ const SubmitReport = ({ campaign }) => {
             isSearchable
           />
         </div>
+
 
         {/* Date of Submission */}
         <div>
@@ -373,6 +417,7 @@ const SubmitReport = ({ campaign }) => {
           />
         </div>
 
+
         {/* Remarks */}
         <div>
           <label className="block font-medium mb-1">Remarks (Optional)</label>
@@ -384,6 +429,7 @@ const SubmitReport = ({ campaign }) => {
             placeholder="Add any additional notes..."
           />
         </div>
+
 
         {/* STOCK FIELDS */}
         {reportType?.value === "Stock" && (
@@ -447,6 +493,7 @@ const SubmitReport = ({ campaign }) => {
               />
             </div>
 
+
             <div>
               <label className="block font-medium mb-1">Quantity *</label>
               <input
@@ -458,6 +505,7 @@ const SubmitReport = ({ campaign }) => {
                 min="0"
               />
             </div>
+
 
             {/* Bill Copies with Image Preview */}
             <div>
@@ -473,6 +521,7 @@ const SubmitReport = ({ campaign }) => {
                   onChange={handleBillCopiesChange}
                 />
               </label>
+
 
               {billCopies.length > 0 && (
                 <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -519,6 +568,7 @@ const SubmitReport = ({ campaign }) => {
           </div>
         )}
 
+
         {/* WINDOW DISPLAY */}
         {reportType?.value === "Window Display" && (
           <div>
@@ -534,6 +584,7 @@ const SubmitReport = ({ campaign }) => {
                 onChange={handleShopImagesChange}
               />
             </label>
+
 
             {shopDisplayImages.length > 0 && (
               <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -575,6 +626,7 @@ const SubmitReport = ({ campaign }) => {
                 onChange={handleOtherFilesChange}
               />
             </label>
+
 
             {otherFiles.length > 0 && (
               <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -620,6 +672,7 @@ const SubmitReport = ({ campaign }) => {
           </div>
         )}
 
+
         <button
           type="submit"
           disabled={loading}
@@ -631,5 +684,6 @@ const SubmitReport = ({ campaign }) => {
     </div>
   )
 }
+
 
 export default SubmitReport

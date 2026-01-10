@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ToastContainer, toast } from "react-toastify";
+import { API_URL } from "../../url/base";
 import "react-toastify/dist/ReactToastify.css";
 import {
     FaUser,
@@ -63,7 +64,7 @@ const EmployeeDashboard = () => {
                 }
 
                 const response = await fetch(
-                    "https://conceptpromotions.in/api/employee/profile",
+                    `${API_URL}/employee/profile`,
                     {
                         method: "GET",
                         headers: {

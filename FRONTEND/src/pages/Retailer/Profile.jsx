@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { API_URL } from "../../url/base";
 import {
   FaUser,
   FaUsers,
@@ -20,8 +21,6 @@ import {
   FaCode,
 } from "react-icons/fa";
 import { IoClose, IoChevronDown } from "react-icons/io5";
-
-const API_BASE = "https://conceptpromotions.in/api";
 
 const SearchableSelect = ({ label, placeholder, options, value, onChange, leftIcon, disabled }) => {
   const [open, setOpen] = useState(false);
@@ -272,7 +271,7 @@ const RetailerProfile = () => {
   const [registrationFormFile, setRegistrationFormFile] = useState(null);
   const [outletPhoto, setOutletPhoto] = useState(null);
 
-  // Existing images from backend
+  // Existing images from backend (Cloudinary URLs)
   const [existingGovtIdPhoto, setExistingGovtIdPhoto] = useState(null);
   const [existingPersonPhoto, setExistingPersonPhoto] = useState(null);
   const [existingRegistrationForm, setExistingRegistrationForm] = useState(null);
@@ -301,7 +300,7 @@ const RetailerProfile = () => {
           return;
         }
 
-        const res = await fetch(`${API_BASE}/retailer/retailer/me`, {
+        const res = await fetch(`${API_URL}/retailer/retailer/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -360,54 +359,11 @@ const RetailerProfile = () => {
         if (tncValue) setTncLocked(true);
         if (pennyValue) setPennyCheckLocked(true);
 
-        // Fetch images
-        const imageStatusRes = await fetch(`${API_BASE}/retailer/retailer/image-status`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (imageStatusRes.ok) {
-          const imageStatus = await imageStatusRes.json();
-
-          if (imageStatus.hasGovtIdPhoto) {
-            const imgRes = await fetch(`${API_BASE}/retailer/retailer/image/govtIdPhoto`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (imgRes.ok) {
-              const blob = await imgRes.blob();
-              setExistingGovtIdPhoto(URL.createObjectURL(blob));
-            }
-          }
-
-          if (imageStatus.hasPersonPhoto) {
-            const imgRes = await fetch(`${API_BASE}/retailer/retailer/image/personPhoto`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (imgRes.ok) {
-              const blob = await imgRes.blob();
-              setExistingPersonPhoto(URL.createObjectURL(blob));
-            }
-          }
-
-          if (imageStatus.hasRegistrationFormFile) {
-            const imgRes = await fetch(`${API_BASE}/retailer/retailer/image/registrationFormFile`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (imgRes.ok) {
-              const blob = await imgRes.blob();
-              setExistingRegistrationForm(URL.createObjectURL(blob));
-            }
-          }
-
-          if (imageStatus.hasOutletPhoto) {
-            const imgRes = await fetch(`${API_BASE}/retailer/retailer/image/outletPhoto`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (imgRes.ok) {
-              const blob = await imgRes.blob();
-              setExistingOutletPhoto(URL.createObjectURL(blob));
-            }
-          }
-        }
+        // Extract URLs from backend's object structure { url: string, publicId: string }
+        setExistingGovtIdPhoto(data.govtIdPhoto?.url || null);
+        setExistingPersonPhoto(data.personPhoto?.url || null);
+        setExistingRegistrationForm(data.registrationFormFile?.url || null);
+        setExistingOutletPhoto(data.outletPhoto?.url || null);
 
         setLoading(false);
       } catch (err) {
@@ -417,18 +373,10 @@ const RetailerProfile = () => {
     };
 
     fetchProfile();
-
-    return () => {
-      if (existingGovtIdPhoto?.startsWith('blob:')) URL.revokeObjectURL(existingGovtIdPhoto);
-      if (existingPersonPhoto?.startsWith('blob:')) URL.revokeObjectURL(existingPersonPhoto);
-      if (existingRegistrationForm?.startsWith('blob:')) URL.revokeObjectURL(existingRegistrationForm);
-      if (existingOutletPhoto?.startsWith('blob:')) URL.revokeObjectURL(existingOutletPhoto);
-    };
   }, []);
 
   // Detect bank detail changes
   useEffect(() => {
-    // Skip if we're updating from backend
     if (isUpdatingFromBackend.current) {
       return;
     }
@@ -457,9 +405,10 @@ const RetailerProfile = () => {
         return;
       }
 
+      // Create FormData to send files to backend
       const formData = new FormData();
 
-      // Basic
+      // Basic fields
       formData.append("name", name);
       formData.append("email", email);
       formData.append("contactNo", contactNo);
@@ -475,8 +424,6 @@ const RetailerProfile = () => {
       formData.append("ownershipType", ownershipType || "");
       formData.append("GSTNo", gstNo || "");
       formData.append("PANCard", panCard);
-
-      // Shop address
       formData.append("address", address1);
       formData.append("address2", address2 || "");
       formData.append("city", city);
@@ -488,18 +435,16 @@ const RetailerProfile = () => {
       formData.append("accountNumber", accountNumber);
       formData.append("IFSC", ifsc);
       formData.append("branchName", branchName);
-
-      // T&C and Penny Check
       formData.append("tnc", tnc);
       formData.append("pennyCheck", pennyCheck);
 
-      // Files - only append if changed
+      // Files - only append if new files selected
       if (govtIdPhoto?.raw) formData.append("govtIdPhoto", govtIdPhoto.raw);
       if (personPhoto?.raw) formData.append("personPhoto", personPhoto.raw);
       if (registrationFormFile?.raw) formData.append("registrationFormFile", registrationFormFile.raw);
       if (outletPhoto?.raw) formData.append("outletPhoto", outletPhoto.raw);
 
-      const res = await fetch(`${API_BASE}/retailer/me`, {
+      const res = await fetch(`${API_URL}/retailer/me`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -556,6 +501,18 @@ const RetailerProfile = () => {
       if (tncValue) setTncLocked(true);
       if (pennyValue) setPennyCheckLocked(true);
 
+      // Update Cloudinary URLs from backend's object structure
+      setExistingGovtIdPhoto(r.govtIdPhoto?.url || null);
+      setExistingPersonPhoto(r.personPhoto?.url || null);
+      setExistingRegistrationForm(r.registrationFormFile?.url || null);
+      setExistingOutletPhoto(r.outletPhoto?.url || null);
+
+      // Clear file inputs
+      setGovtIdPhoto(null);
+      setPersonPhoto(null);
+      setRegistrationFormFile(null);
+      setOutletPhoto(null);
+
       // RESET FLAG AFTER A SHORT DELAY
       setTimeout(() => {
         isUpdatingFromBackend.current = false;
@@ -569,8 +526,6 @@ const RetailerProfile = () => {
       setSubmitting(false);
     }
   };
-
-
 
   if (loading) {
     return (
@@ -785,8 +740,8 @@ const RetailerProfile = () => {
                       }}
                       placeholder="29ABCDE1234F1Z5"
                       className={`w-full pl-10 px-4 py-2 border rounded-lg outline-none focus:ring-2 ${gstError
-                        ? "border-red-500 focus:ring-red-500"
-                        : "border-gray-300 focus:ring-[#E4002B]"
+                          ? "border-red-500 focus:ring-red-500"
+                          : "border-gray-300 focus:ring-[#E4002B]"
                         }`}
                     />
                   </div>
@@ -956,8 +911,8 @@ const RetailerProfile = () => {
                     placeholder="HDFC0001234"
                     maxLength={11}
                     className={`w-full pl-10 pr-4 py-2 border rounded-lg outline-none focus:ring-2 ${ifscError
-                      ? "border-red-500 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-[#E4002B]"
+                        ? "border-red-500 focus:ring-red-500"
+                        : "border-gray-300 focus:ring-[#E4002B]"
                       }`}
                     required
                   />
@@ -1088,16 +1043,15 @@ const RetailerProfile = () => {
               </label>
             </div>
 
-            <div>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-[#E4002B] text-white py-3 rounded-lg font-medium hover:bg-[#C3002B] transition disabled:opacity-60 cursor-pointer"
-              >
-                {submitting ? "Saving..." : "Save Profile"}
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={submitting || gstError || ifscError}
+              className="w-full py-3 bg-[#E4002B] text-white rounded-lg font-medium hover:bg-[#c4001f] disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+            >
+              {submitting ? "Updating..." : "Update Profile"}
+            </button>
           </form>
+
 
           {/* Terms & Conditions Modal */}
           {showTerms && (

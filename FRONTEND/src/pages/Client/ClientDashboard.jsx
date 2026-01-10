@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { API_URL } from "../../url/base";
 import {
     FaHome,
     FaWallet,
@@ -58,7 +59,7 @@ const ClientDashboard = () => {
 
             // 1️⃣ Fetch Campaigns
             const campRes = await fetch(
-                "https://conceptpromotions.in/api/client/client/campaigns",
+                `${API_URL}/client/client/campaigns`,
                 { headers }
             );
 
@@ -71,7 +72,7 @@ const ClientDashboard = () => {
 
             // 2️⃣ Fetch Payments
             const payRes = await fetch(
-                "https://conceptpromotions.in/api/client/client/payments",
+                `${API_URL}/client/client/payments`,
                 { headers }
             );
 
@@ -82,7 +83,7 @@ const ClientDashboard = () => {
             const payData = payRes.ok ? await payRes.json() : { payments: [] };
             // 3️⃣ Fetch Reported Outlets
             const reportRes = await fetch(
-                "https://conceptpromotions.in/api/client/client/reported-outlets",
+                `${API_URL}/client/client/reported-outlets`,
                 { headers }
             );
 

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { API_URL } from "../../url/base";
 import {
   FaEnvelope,
   FaLock,
@@ -24,7 +25,7 @@ const RetailerSignIn = () => {
 
     try {
       const response = await fetch(
-        "https://conceptpromotions.in/api/retailer/login",
+        `${API_URL}/retailer/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

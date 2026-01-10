@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Select from "react-select";
 import { FaSearch } from "react-icons/fa";
+import { API_URL } from "../../url/base";
 
 const JobTracking = ( { onViewJob }) => {
     const [allJobs, setAllJobs] = useState([]);
@@ -24,7 +25,7 @@ const JobTracking = ( { onViewJob }) => {
     const fetchJobs = async () => {
         try {
             const token = localStorage.getItem("token");
-            const res = await fetch("https://conceptpromotions.in/api/admin/jobs", {
+            const res = await fetch(`${API_URL}/admin/jobs`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
