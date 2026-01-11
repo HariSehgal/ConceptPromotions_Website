@@ -503,9 +503,19 @@ const BulkUpload = () => {
                                                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">
                                                                 Name
                                                             </th>
-                                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">
-                                                                Shop Name
-                                                            </th>
+                                                            {partyType ===
+                                                                "Retailer" && (
+                                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">
+                                                                    Shop Name
+                                                                </th>
+                                                            )}
+                                                            {partyType ===
+                                                                "Employee" && (
+                                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">
+                                                                    Email
+                                                                </th>
+                                                            )}
+
                                                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">
                                                                 Contact
                                                             </th>
@@ -531,11 +541,23 @@ const BulkUpload = () => {
                                                                             item.name
                                                                         }
                                                                     </td>
-                                                                    <td className="px-4 py-2 text-sm">
-                                                                        {
-                                                                            item.shopName
-                                                                        }
-                                                                    </td>
+                                                                    {partyType ===
+                                                                        "Retailer" && (
+                                                                        <td className="px-4 py-2 text-sm">
+                                                                            {
+                                                                                item.shopName
+                                                                            }
+                                                                        </td>
+                                                                    )}
+                                                                    {partyType ===
+                                                                        "Employee" && (
+                                                                        <td className="px-4 py-2 text-sm">
+                                                                            {
+                                                                                item.email
+                                                                            }
+                                                                        </td>
+                                                                    )}
+
                                                                     <td className="px-4 py-2 text-sm">
                                                                         {item.phone ||
                                                                             item.contactNo}
