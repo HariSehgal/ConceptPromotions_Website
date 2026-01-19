@@ -21,6 +21,8 @@ import {
   FaCode,
 } from "react-icons/fa";
 import { IoClose, IoChevronDown } from "react-icons/io5";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const SearchableSelect = ({ label, placeholder, options, value, onChange, leftIcon, disabled }) => {
   const [open, setOpen] = useState(false);
@@ -194,9 +196,85 @@ const FileInput = ({ label, accept = "*", file, setFile, existingImageUrl }) => 
   );
 };
 
+
 const formatDateForInput = (dateString) => {
   if (!dateString) return "";
   return new Date(dateString).toISOString().split("T")[0];
+};
+
+// NEW: OTP Modal Component
+const OTPModal = ({ 
+  show, 
+  onClose, 
+  phoneNumber, 
+  onVerify, 
+  onResend,
+  isVerifying,
+  isSending 
+}) => {
+  const [otpValue, setOtpValue] = useState("");
+
+  if (!show) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50">
+      <div className="bg-white rounded-lg shadow-2xl w-[90%] md:w-[400px] p-6 relative">
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
+        >
+          <IoClose size={24} />
+        </button>
+
+        <h3 className="text-xl font-bold mb-2 text-gray-800 text-center">
+          Verify Phone Number
+        </h3>
+        <p className="text-sm text-gray-600 mb-4 text-center">
+          OTP sent to <span className="font-semibold text-[#E4002B]">{phoneNumber}</span>
+        </p>
+
+        <input
+          type="text"
+          maxLength="6"
+          value={otpValue}
+          onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
+          placeholder="Enter 6-digit OTP"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest font-semibold focus:outline-none focus:ring-2 focus:ring-[#E4002B] mb-4"
+        />
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onVerify(otpValue)}
+            disabled={isVerifying || otpValue.length !== 6}
+            className={`flex-1 py-2 rounded-lg transition cursor-pointer ${
+              isVerifying || otpValue.length !== 6
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-[#E4002B] hover:bg-[#c4001f]'
+            } text-white font-semibold`}
+          >
+            {isVerifying ? 'Verifying...' : 'Verify'}
+          </button>
+        </div>
+
+        <button
+          onClick={() => {
+            setOtpValue("");
+            onResend();
+          }}
+          disabled={isSending}
+          className="w-full mt-3 text-[#E4002B] text-sm hover:underline disabled:text-gray-400 disabled:cursor-not-allowed cursor-pointer"
+        >
+          {isSending ? 'Resending...' : 'Resend OTP'}
+        </button>
+      </div>
+    </div>
+  );
 };
 
 const RetailerProfile = () => {
@@ -288,6 +366,121 @@ const RetailerProfile = () => {
   const [tncLocked, setTncLocked] = useState(false);
   const [error, setError] = useState("");
   const isUpdatingFromBackend = useRef(false);
+  
+  // OTP States
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpFor, setOtpFor] = useState(null); // 'contact' or 'altContact'
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [contactVerified, setContactVerified] = useState(false);
+  const [altContactVerified, setAltContactVerified] = useState(false);
+
+  // ... [Keep all other state variables from your original code] ...
+
+  // Send OTP Handler
+  const handleSendOtp = async (phoneType) => {
+    const phone = phoneType === 'contact' ? contactNo : altContactNo;
+    
+    if (!phone || !/^\d{10}$/.test(phone)) {
+      toast.error("Please enter a valid 10-digit phone number");
+      return;
+    }
+
+    setIsSendingOtp(true);
+    setOtpFor(phoneType);
+
+    try {
+      const res = await fetch(`${API_URL}/otp/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          phone: phone,
+          type: 'verification'
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success("OTP sent successfully!");
+        setShowOtpModal(true);
+        
+        // Show OTP in development mode
+        if (data.otp) {
+          console.log(`Dev OTP for ${phone}:`, data.otp);
+        }
+      } else {
+        toast.error(data.message || "Failed to send OTP");
+        setOtpFor(null);
+      }
+    } catch (error) {
+      console.error('OTP Send Error:', error);
+      toast.error("Failed to send OTP. Please try again.");
+      setOtpFor(null);
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  // Verify OTP Handler
+  const handleVerifyOtp = async (otp) => {
+    if (!otp || otp.length !== 6) {
+      toast.error("Please enter a 6-digit OTP");
+      return;
+    }
+
+    const phone = otpFor === 'contact' ? contactNo : altContactNo;
+    setIsVerifyingOtp(true);
+
+    try {
+      const res = await fetch(`${API_URL}/otp/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          phone: phone,
+          otp: otp 
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success("Phone verified successfully! ✓");
+        
+        if (otpFor === 'contact') {
+          setContactVerified(true);
+        } else {
+          setAltContactVerified(true);
+        }
+        
+        setShowOtpModal(false);
+        setOtpFor(null);
+      } else {
+        toast.error("Invalid OTP");
+      }
+    } catch (error) {
+      console.error('OTP Verify Error:', error);
+      toast.error("Verification failed. Please try again.");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
+  // Resend OTP Handler
+  const handleResendOtp = () => {
+    if (otpFor) {
+      handleSendOtp(otpFor);
+    }
+  };
+
+  // Reset verification when phone number changes
+  useEffect(() => {
+    setContactVerified(false);
+  }, [contactNo]);
+
+  useEffect(() => {
+    setAltContactVerified(false);
+  }, [altContactNo]);
 
   // LOAD PROFILE FROM BACKEND
   useEffect(() => {
@@ -392,8 +585,22 @@ const RetailerProfile = () => {
     }
   }, [bankName, accountNumber, ifsc, branchName, originalBankDetails, pennyCheckLocked]);
 
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Check if contact number is verified
+    if (!contactVerified) {
+      toast.error("Please verify your contact number first");
+      return;
+    }
+
+    // Check if alternate contact is provided and not verified
+    if (altContactNo && !altContactVerified) {
+      toast.error("Please verify your alternate contact number");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
 
@@ -518,10 +725,20 @@ const RetailerProfile = () => {
         isUpdatingFromBackend.current = false;
       }, 100);
 
-      alert("Profile updated successfully");
+      toast.success("Profile updated successfully!", {
+        theme: "dark",
+        position: "top-right",
+        autoClose: 3000
+      });
+
     } catch (err) {
       isUpdatingFromBackend.current = false;
       setError(err.message || "Error updating profile");
+      toast.error(err.message || "Failed to update profile", {
+        theme: "dark",
+        position: "top-right",
+        autoClose: 3000
+      });
     } finally {
       setSubmitting(false);
     }
@@ -537,8 +754,24 @@ const RetailerProfile = () => {
 
   return (
     <>
-      <div className="flex justify-center items-center w-full">
-        <div className="w-full max-w-3xl bg-white shadow-md rounded-xl p-8">
+      <ToastContainer />
+
+      {/* OTP Modal */}
+      <OTPModal
+        show={showOtpModal}
+        onClose={() => {
+          setShowOtpModal(false);
+          setOtpFor(null);
+        }}
+        phoneNumber={otpFor === 'contact' ? contactNo : altContactNo}
+        onVerify={handleVerifyOtp}
+        onResend={handleResendOtp}
+        isVerifying={isVerifyingOtp}
+        isSending={isSendingOtp}
+      />
+
+      <div className="flex justify-center items-center w-full bg-[#171717]">
+        <div className="w-full max-w-3xl shadow-md rounded-xl p-8 bg-[#EDEDED]">
           <h1 className="text-2xl font-bold text-[#E4002B] text-center pb-8">
             Complete Your Profile
           </h1>
@@ -547,7 +780,7 @@ const RetailerProfile = () => {
             <p className="mb-4 text-sm text-red-600 text-center">{error}</p>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6 ">
             {/* Personal Details */}
             <section className="space-y-4">
               <h3 className="text-lg font-medium text-[#E4002B]">
@@ -569,6 +802,7 @@ const RetailerProfile = () => {
                 </div>
               </div>
 
+              {/* Contact Number with OTP Verification */}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Contact No <span className="text-red-500">*</span>
@@ -578,17 +812,31 @@ const RetailerProfile = () => {
                   <input
                     type="tel"
                     value={contactNo}
-                    onChange={(e) =>
-                      setContactNo(e.target.value.replace(/\D/g, ""))
-                    }
+                    onChange={(e) => setContactNo(e.target.value.replace(/\D/g, ""))}
                     placeholder="+91 1234567890"
                     maxLength={10}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
+                    disabled={contactVerified}
+                    className={`w-full pl-10 pr-24 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B] ${contactVerified ? 'bg-gray-100 cursor-not-allowed' : ''
+                      }`}
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => handleSendOtp('contact')}
+                    disabled={contactVerified || isSendingOtp || contactNo.length !== 10}
+                    className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold px-2 py-1 rounded transition ${contactVerified
+                      ? 'text-green-600 cursor-default'
+                      : isSendingOtp || contactNo.length !== 10
+                        ? 'text-gray-400 cursor-not-allowed'
+                        : 'text-[#E4002B] hover:bg-red-50 cursor-pointer'
+                      }`}
+                  >
+                    {contactVerified ? '✓ Verified' : isSendingOtp && otpFor === 'contact' ? 'Sending...' : 'Verify'}
+                  </button>
                 </div>
               </div>
 
+              {/* Alternate Contact Number with OTP Verification */}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Alternate Contact No
@@ -598,13 +846,28 @@ const RetailerProfile = () => {
                   <input
                     type="tel"
                     value={altContactNo}
-                    onChange={(e) =>
-                      setAltContactNo(e.target.value.replace(/\D/g, ""))
-                    }
+                    onChange={(e) => setAltContactNo(e.target.value.replace(/\D/g, ""))}
                     placeholder="+91 1234567890"
                     maxLength={10}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B]"
+                    disabled={altContactVerified}
+                    className={`w-full pl-10 pr-24 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#E4002B] ${altContactVerified ? 'bg-gray-100 cursor-not-allowed' : ''
+                      }`}
                   />
+                  {altContactNo && (
+                    <button
+                      type="button"
+                      onClick={() => handleSendOtp('altContact')}
+                      disabled={altContactVerified || isSendingOtp || altContactNo.length !== 10}
+                      className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold px-2 py-1 rounded transition ${altContactVerified
+                        ? 'text-green-600 cursor-default'
+                        : isSendingOtp || altContactNo.length !== 10
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : 'text-[#E4002B] hover:bg-red-50 cursor-pointer'
+                        }`}
+                    >
+                      {altContactVerified ? '✓ Verified' : isSendingOtp && otpFor === 'altContact' ? 'Sending...' : 'Verify'}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -740,8 +1003,8 @@ const RetailerProfile = () => {
                       }}
                       placeholder="29ABCDE1234F1Z5"
                       className={`w-full pl-10 px-4 py-2 border rounded-lg outline-none focus:ring-2 ${gstError
-                          ? "border-red-500 focus:ring-red-500"
-                          : "border-gray-300 focus:ring-[#E4002B]"
+                        ? "border-red-500 focus:ring-red-500"
+                        : "border-gray-300 focus:ring-[#E4002B]"
                         }`}
                     />
                   </div>
@@ -911,8 +1174,8 @@ const RetailerProfile = () => {
                     placeholder="HDFC0001234"
                     maxLength={11}
                     className={`w-full pl-10 pr-4 py-2 border rounded-lg outline-none focus:ring-2 ${ifscError
-                        ? "border-red-500 focus:ring-red-500"
-                        : "border-gray-300 focus:ring-[#E4002B]"
+                      ? "border-red-500 focus:ring-red-500"
+                      : "border-gray-300 focus:ring-[#E4002B]"
                       }`}
                     required
                   />
@@ -1045,11 +1308,80 @@ const RetailerProfile = () => {
 
             <button
               type="submit"
-              disabled={submitting || gstError || ifscError}
-              className="w-full py-3 bg-[#E4002B] text-white rounded-lg font-medium hover:bg-[#c4001f] disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+              disabled={submitting || gstError || ifscError || !contactVerified}
+              className="w-full py-3 bg-[#E4002B] text-white rounded-lg font-medium hover:bg-[#c4001f] disabled:bg-gray-400 disabled:cursor-not-allowed transition cursor-pointer"
             >
-              {submitting ? "Updating..." : "Update Profile"}
+              {submitting ? "Updating..." : !contactVerified ? "Verify Contact First" : "Update Profile"}
             </button>
+
+            {/* ✅ ADD THIS SECTION HERE */}
+            {/* KYC Status Section */}
+            <div className="mt-8 p-6 bg-gray-50 border-2 border-gray-200 rounded-lg">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">KYC Verification Status</h3>
+
+              {/* KYC Status Badge */}
+              <div className="mb-4">
+                {(
+                  panCard &&
+                  govtIdType &&
+                  govtIdNumber &&
+                  (govtIdPhoto || existingGovtIdPhoto) &&
+                  bankName &&
+                  accountNumber &&
+                  ifsc &&
+                  branchName &&
+                  pennyCheck
+                ) ? (
+                  <div className="flex items-center gap-2 bg-green-50 border border-green-500 rounded-lg px-4 py-3">
+                    <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-green-700 font-medium">Your KYC is Verified</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 bg-red-50 border border-red-500 rounded-lg px-4 py-3">
+                    <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-red-700 font-medium">KYC Not Verified - Complete Required Fields</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Required Fields List */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-gray-700 mb-2">Required Fields for KYC:</p>
+                <ul className="space-y-1 text-sm">
+                  <li className={`flex items-center gap-2 ${panCard ? 'text-green-600' : 'text-red-600'}`}>
+                    {panCard ? '✓' : '✗'} PAN Card Number
+                  </li>
+                  <li className={`flex items-center gap-2 ${govtIdType ? 'text-green-600' : 'text-red-600'}`}>
+                    {govtIdType ? '✓' : '✗'} Government ID Type
+                  </li>
+                  <li className={`flex items-center gap-2 ${govtIdNumber ? 'text-green-600' : 'text-red-600'}`}>
+                    {govtIdNumber ? '✓' : '✗'} Government ID Number
+                  </li>
+                  <li className={`flex items-center gap-2 ${(govtIdPhoto || existingGovtIdPhoto) ? 'text-green-600' : 'text-red-600'}`}>
+                    {(govtIdPhoto || existingGovtIdPhoto) ? '✓' : '✗'} Government ID Photo
+                  </li>
+                  <li className={`flex items-center gap-2 ${bankName ? 'text-green-600' : 'text-red-600'}`}>
+                    {bankName ? '✓' : '✗'} Bank Name
+                  </li>
+                  <li className={`flex items-center gap-2 ${accountNumber ? 'text-green-600' : 'text-red-600'}`}>
+                    {accountNumber ? '✓' : '✗'} Account Number
+                  </li>
+                  <li className={`flex items-center gap-2 ${ifsc ? 'text-green-600' : 'text-red-600'}`}>
+                    {ifsc ? '✓' : '✗'} IFSC Code
+                  </li>
+                  <li className={`flex items-center gap-2 ${branchName ? 'text-green-600' : 'text-red-600'}`}>
+                    {branchName ? '✓' : '✗'} Branch Name
+                  </li>
+                  <li className={`flex items-center gap-2 ${pennyCheck ? 'text-green-600' : 'text-red-600'}`}>
+                    {pennyCheck ? '✓' : '✗'} Penny Transfer Verification
+                  </li>
+                </ul>
+              </div>
+            </div>
           </form>
 
 

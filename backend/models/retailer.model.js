@@ -9,7 +9,7 @@ const retailerSchema = new Schema(
         retailerCode: { type: String, unique: true },
         name: { type: String, required: true },
         contactNo: { type: String, required: true, unique: true },
-        altContactNo: { type: String, unique: true },
+        altContactNo: { type: String, sparse: true, unique: true },
         dob: { type: Date },
         gender: { type: String },
         govtIdType: String,
@@ -58,7 +58,7 @@ const retailerSchema = new Schema(
         pennyCheck: { type: Boolean },
 
         phoneVerified: { type: Boolean, default: true },
-        email: String,
+        email: { type: String, sparse: true, unique: true },
         password: { type: String },
 
         assignedCampaigns: [
@@ -76,18 +76,17 @@ const retailerSchema = new Schema(
     { timestamps: true }
 );
 
-retailerSchema.index({ email: 1, contactNo: 1 });
+retailerSchema.index({ email: 1 }, { sparse: true });
+retailerSchema.index({ contactNo: 1 });
 
 /* ======================================================
    PRE-VALIDATE (ONLY MOVED CODE – NO LOGIC CHANGE)
 ====================================================== */
 retailerSchema.pre("validate", function (next) {
-   
     if (this.isNew && !this.password) {
         this.password = this.contactNo;
     }
 
-    
     if (!this.uniqueId) {
         const name = this.name.charAt(0).toUpperCase();
         const businessType = this.shopDetails?.businessType || "O";
@@ -125,7 +124,6 @@ retailerSchema.pre("save", async function (next) {
         next(err);
     }
 });
-
 
 retailerSchema.methods.comparePassword = async function (candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);

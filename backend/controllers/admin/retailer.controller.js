@@ -1,8 +1,7 @@
 // admin/retailer.controller.js
-import bcrypt from "bcryptjs";
 import XLSX from "xlsx";
 import { Retailer } from "../../models/retailer.model.js";
-import { Employee, Campaign} from "../../models/user.js";
+import { Campaign, Employee } from "../../models/user.js";
 
 // Utility to generate unique IDs (same implementation as original)
 function generateUniqueId() {
@@ -276,5 +275,324 @@ export const getAssignedEmployeeForRetailer = async (req, res) => {
     } catch (err) {
         console.error("Error checking assigned employee:", err);
         res.status(500).json({ message: "Server error" });
+    }
+};
+
+export const bulkRegisterRetailers = async (req, res) => {
+    try {
+        // Only admins can bulk upload retailers
+        if (!req.user || req.user.role !== "admin") {
+            return res
+                .status(403)
+                .json({ message: "Only admins can upload retailers" });
+        }
+
+        if (!req.file) {
+            return res
+                .status(400)
+                .json({ message: "Excel/CSV file is required" });
+        }
+
+        // Read Excel
+        const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+        const rows = XLSX.utils.sheet_to_json(sheet, {
+            raw: false,
+            defval: "",
+        });
+
+        const retailersToInsert = [];
+        const failedRows = [];
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+
+            // Sanitize numeric fields
+            const contactNo = String(row.contactNo || "")
+                .replace(/[^0-9]/g, "")
+                .slice(0, 10);
+            const shopPincode = String(row.shopPincode || "")
+                .replace(/[^0-9]/g, "")
+                .slice(0, 6);
+            const accountNumber = String(row.accountNumber || "").replace(
+                /[^0-9]/g,
+                ""
+            );
+
+            // Extract required fields from Excel
+            const {
+                shopName,
+                shopAddress,
+                shopCity,
+                shopState,
+                businessType,
+                name,
+                PANCard,
+                bankName,
+                IFSC,
+                branchName,
+            } = row;
+
+            /* ---------------- VALIDATION ---------------- */
+
+            const missingFields = [];
+
+            // Required fields validation
+            if (!name) missingFields.push("name");
+            if (!contactNo) missingFields.push("contactNo");
+            if (!shopName) missingFields.push("shopName");
+            if (!shopAddress) missingFields.push("shopAddress");
+            if (!shopCity) missingFields.push("shopCity");
+            if (!shopState) missingFields.push("shopState");
+            if (!shopPincode) missingFields.push("shopPincode");
+            if (!businessType) missingFields.push("businessType");
+            if (!PANCard) missingFields.push("PANCard");
+            if (!bankName) missingFields.push("bankName");
+            if (!accountNumber) missingFields.push("accountNumber");
+            if (!IFSC) missingFields.push("IFSC");
+            if (!branchName) missingFields.push("branchName");
+
+            if (missingFields.length > 0) {
+                failedRows.push({
+                    rowNumber: i + 2,
+                    reason: `Missing required fields: ${missingFields.join(
+                        ", "
+                    )}`,
+                    data: row,
+                });
+                continue;
+            }
+
+            // Contact validation
+            const contactRegex = /^[6-9]\d{9}$/;
+            if (!contactRegex.test(contactNo)) {
+                failedRows.push({
+                    rowNumber: i + 2,
+                    reason: `Invalid contact number: ${contactNo}. Must be 10 digits starting with 6-9`,
+                    data: row,
+                });
+                continue;
+            }
+
+            // Pincode validation
+            if (shopPincode.length !== 6) {
+                failedRows.push({
+                    rowNumber: i + 2,
+                    reason: `Invalid pincode: ${shopPincode}. Must be 6 digits`,
+                    data: row,
+                });
+                continue;
+            }
+
+            // Duplicate check
+            const exists = await Retailer.findOne({ contactNo });
+
+            if (exists) {
+                failedRows.push({
+                    rowNumber: i + 2,
+                    reason: `Duplicate: Contact number '${contactNo}' already exists`,
+                    data: row,
+                    existingRetailer: {
+                        id: exists._id,
+                        name: exists.name,
+                        contactNo: exists.contactNo,
+                        uniqueId: exists.uniqueId,
+                        retailerCode: exists.retailerCode,
+                    },
+                });
+                continue;
+            }
+
+            /* ---------------- BUILD RETAILER OBJECT ---------------- */
+            retailersToInsert.push({
+                // Personal Details
+                name,
+                contactNo,
+                password: contactNo, // Will be hashed by pre-save hook
+
+                // Shop Details
+                shopDetails: {
+                    shopName,
+                    businessType,
+                    PANCard,
+                    shopAddress: {
+                        address: shopAddress,
+                        city: shopCity,
+                        state: shopState,
+                        pincode: shopPincode,
+                    },
+                },
+
+                // Bank Details
+                bankDetails: {
+                    bankName,
+                    accountNumber,
+                    IFSC,
+                    branchName,
+                },
+
+                // System Fields
+                phoneVerified: true,
+                tnc: false,
+                pennyCheck: false,
+            });
+        }
+
+        /* ---------------- INSERT INTO DATABASE ---------------- */
+
+        let insertedRetailers = [];
+        if (retailersToInsert.length > 0) {
+            try {
+                console.log(
+                    `📝 Attempting to insert ${retailersToInsert.length} retailers...`
+                );
+
+                insertedRetailers = await Retailer.insertMany(
+                    retailersToInsert,
+                    { ordered: false }
+                );
+
+                console.log(
+                    `✅ Successfully inserted ${insertedRetailers.length} retailers`
+                );
+            } catch (insertError) {
+                console.error("❌ Insert error:", insertError);
+
+                // Capture successfully inserted documents
+                if (insertError.insertedDocs) {
+                    insertedRetailers = insertError.insertedDocs;
+                    console.log(
+                        `✅ Partially successful: ${insertedRetailers.length} inserted`
+                    );
+                }
+
+                // Capture failed inserts from MongoDB
+                if (insertError.writeErrors) {
+                    console.log(
+                        `❌ Write errors found: ${insertError.writeErrors.length}`
+                    );
+                    insertError.writeErrors.forEach((err) => {
+                        const failedIndex = err.index;
+                        const failedDoc = retailersToInsert[failedIndex];
+
+                        let errorMsg = "Unknown database error";
+                        if (err.errmsg) {
+                            errorMsg = err.errmsg;
+                        } else if (err.err && err.err.errmsg) {
+                            errorMsg = err.err.errmsg;
+                        } else if (err.message) {
+                            errorMsg = err.message;
+                        }
+
+                        failedRows.push({
+                            rowNumber: failedIndex + 2,
+                            reason: `Database error: ${errorMsg}`,
+                            data: {
+                                name: failedDoc.name,
+                                contactNo: failedDoc.contactNo,
+                                shopName: failedDoc.shopDetails?.shopName,
+                            },
+                        });
+                    });
+                } else {
+                    console.error("General MongoDB error:", {
+                        name: insertError.name,
+                        message: insertError.message,
+                        code: insertError.code,
+                    });
+
+                    if (insertError.name === "ValidationError") {
+                        const validationErrors = Object.keys(
+                            insertError.errors || {}
+                        )
+                            .map((key) => {
+                                return `${key}: ${insertError.errors[key].message}`;
+                            })
+                            .join(", ");
+
+                        return res.status(400).json({
+                            success: false,
+                            message: "Validation error during bulk insert",
+                            error: validationErrors || insertError.message,
+                            failedRows: failedRows,
+                        });
+                    }
+
+                    return res.status(500).json({
+                        success: false,
+                        message: "Database insertion failed",
+                        error: insertError.message,
+                        errorDetails: {
+                            name: insertError.name,
+                            code: insertError.code,
+                        },
+                        failedRows: failedRows,
+                    });
+                }
+            }
+        }
+
+        /* ---------------- PREPARE RESPONSE ---------------- */
+
+        const response = {
+            success: true,
+            summary: {
+                totalRows: rows.length,
+                successful: insertedRetailers.length,
+                failed: failedRows.length,
+                successRate:
+                    rows.length > 0
+                        ? `${(
+                              (insertedRetailers.length / rows.length) *
+                              100
+                          ).toFixed(2)}%`
+                        : "0%",
+            },
+            insertedRetailers: insertedRetailers.map((r) => ({
+                id: r._id,
+                name: r.name,
+                contactNo: r.contactNo,
+                uniqueId: r.uniqueId,
+                retailerCode: r.retailerCode,
+                shopName: r.shopDetails?.shopName,
+            })),
+            failedRows,
+        };
+
+        /* ---------------- RETURN APPROPRIATE STATUS ---------------- */
+
+        if (insertedRetailers.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "No retailers were added. All rows failed validation.",
+                ...response,
+            });
+        }
+
+        if (failedRows.length > 0) {
+            return res.status(207).json({
+                success: true,
+                message: `${insertedRetailers.length} retailers added, ${failedRows.length} rows failed`,
+                ...response,
+            });
+        }
+
+        return res.status(201).json({
+            success: true,
+            message: `All ${insertedRetailers.length} retailers added successfully`,
+            ...response,
+        });
+    } catch (error) {
+        console.error("❌ Bulk retailer upload error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Server error",
+            error: error.message,
+            stack:
+                process.env.NODE_ENV === "development"
+                    ? error.stack
+                    : undefined,
+        });
     }
 };

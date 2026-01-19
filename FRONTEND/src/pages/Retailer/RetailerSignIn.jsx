@@ -68,7 +68,7 @@ const RetailerSignIn = () => {
       {/* NAVBAR */}
       <nav className="fixed top-0 w-full z-50 bg-black shadow-md transition-all duration-300 ease-in-out px-6 md:px-10">
         <div className="flex justify-between items-center py-4 max-w-screen-xl mx-auto">
-          <img src="supreme.png" alt="Logo" className="h-14 cursor-pointer" />
+          <img src="https://res.cloudinary.com/dltqp0vgg/image/upload/v1768037896/supreme_chdev9.png" alt="Logo" className="h-14 cursor-pointer" />
 
           <h2 className="absolute left-1/2 transform -translate-x-1/2 text-xl md:text-2xl font-bold text-[#E4002B]">
             Retailer Login Page
@@ -99,7 +99,7 @@ const RetailerSignIn = () => {
                 <FaEnvelope className="absolute left-3 top-3 text-gray-400" />
                 <input
                   type="email"
-                  placeholder="Example@gmail.com"
+                  placeholder="example@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 bg-[#222] text-white border border-gray-600 rounded-lg 
@@ -145,7 +145,7 @@ const RetailerSignIn = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#E4002B] text-white py-2 rounded-lg font-medium hover:bg-[#C3002B] transition disabled:opacity-60"
+              className="w-full bg-[#E4002B] text-white py-2 rounded-lg font-medium hover:bg-[#C3002B] transition disabled:opacity-60 cursor-pointer"
             >
               {loading ? "Logging in..." : "Login"}
             </button>

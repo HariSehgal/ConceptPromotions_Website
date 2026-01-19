@@ -13,14 +13,13 @@ import {
 } from "../controllers/admin/auth.controller.js";
 import {
     addCampaign,
-
     assignCampaign,
     getAllCampaigns,
     getCampaignById,
     getCampaignRetailersWithEmployees,
     getCampaignVisitSchedules,
     updateCampaign,
-  
+    updateCampaignStatus,
 } from "../controllers/admin/campaign.controller.js";
 import {
     createJobPosting,
@@ -31,7 +30,11 @@ import {
     updateApplicationStatus,
     updateJobPosting,
 } from "../controllers/admin/career.controller.js";
-import { addClientAdmin } from "../controllers/admin/clientAdmin.controller.js";
+import {
+    addClientAdmin,
+    getAllClientAdmins,
+    getClientAdminById,
+} from "../controllers/admin/clientAdmin.controller.js";
 import { addClientUser } from "../controllers/admin/clientUser.controller.js";
 import {
     addEmployee,
@@ -46,7 +49,7 @@ import {
 } from "../controllers/admin/report.controller.js";
 import {
     assignEmployeeToRetailer,
-   
+    bulkRegisterRetailers,
     getAllRetailers,
     getAssignedEmployeeForRetailer,
     getEmployeeRetailerMapping,
@@ -58,19 +61,12 @@ import {
     updateVisitScheduleDetails,
     updateVisitScheduleStatus,
 } from "../controllers/admin/visitSchedule.controller.js";
-import{ bulkRegisterRetailers} from "../controllers/retailerController.js"
-import {
-  
-    getAllClientAdmins,
-    getClientAdminById,
-} from "../controllers/admin/clientAdmin.controller.js";
 
 import { loginClientAdmin } from "../controllers/clientController.js";
 import { getEmployeeVisitProgress } from "../controllers/employeeController.js";
 import { deleteCampaign } from "../controllers/payment.controller.js";
 import {
     registerRetailer,
-    updateCampaignStatus,
 } from "../controllers/retailerController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -85,20 +81,19 @@ router.get(
 );
 
 router.put(
-  "/campaigns/:id",
-  protect,
-  upload.fields([
-    { name: "banners", maxCount: 5 },
-    { name: "gratificationImages", maxCount: 5 }
-  ]),
-  updateCampaign
+    "/campaigns/:id",
+    protect,
+    upload.fields([
+        { name: "banners", maxCount: 5 },
+        { name: "gratificationImages", maxCount: 5 },
+    ]),
+    updateCampaign
 );
 // Get all client admins (with optional filters)
 router.get("/client-admins", protect, getAllClientAdmins);
 
 // Get single client admin by ID
 router.get("/client-admins/:id", protect, getClientAdminById);
-
 
 router.get("/campaigns/:id", protect, getCampaignById);
 router.post("/login", loginAdmin);
@@ -171,15 +166,14 @@ router.get(
 );
 
 router.post(
-  "/campaigns",
-  protect,
-  upload.fields([
-    { name: "banners", maxCount: 5 },
-    { name: "gratificationImages", maxCount: 5 },
-  ]),
-  addCampaign
+    "/campaigns",
+    protect,
+    upload.fields([
+        { name: "banners", maxCount: 5 },
+        { name: "gratificationImages", maxCount: 5 },
+    ]),
+    addCampaign
 );
-
 
 router.get("/campaigns", protect, getAllCampaigns);
 router.delete("/campaigns/:id", protect, deleteCampaign);
@@ -229,7 +223,6 @@ router.get(
     getCampaignVisitSchedules
 );
 
-
 router.put(
     "/visit-schedule/update/:scheduleId",
     protect, // if employee or admin protected route
@@ -243,7 +236,6 @@ router.delete(
 // ===============================
 // ADMIN REPORT ROUTES
 // ===============================
-
 
 router.post(
     "/campaigns/bulk-assign-employee-retailer",

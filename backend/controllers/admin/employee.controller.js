@@ -1,12 +1,7 @@
 // admin/employee.controller.js
 import bcrypt from "bcryptjs";
 import XLSX from "xlsx";
-import {
-    Employee,
-    Campaign,
-    VisitSchedule,
-  
-} from "../../models/user.js";
+import { Campaign, Employee, VisitSchedule } from "../../models/user.js";
 
 // ====== ADD EMPLOYEE ======
 export const addEmployee = async (req, res) => {
@@ -139,7 +134,10 @@ export const bulkAddEmployees = async (req, res) => {
 
         const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet);
+        const rows = XLSX.utils.sheet_to_json(sheet, {
+            raw: false,
+            defval: "",
+        });
 
         const employeesToInsert = [];
         const failedRows = [];
@@ -147,36 +145,38 @@ export const bulkAddEmployees = async (req, res) => {
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
 
-            const {
-                sno,
-                name,
-                email,
-                contactNo,
-                employeeType,
-                position,
-            } = row;
+            // Sanitize contact number
+            const contactNo = String(row.contactNo || "")
+                .replace(/[^0-9]/g, "")
+                .slice(0, 10);
 
-            // ✅ VALIDATION - Check required fields
+            const { name, email, employeeType, position } = row;
+
+            /* ---------------- VALIDATION ---------------- */
+
             const missingFields = [];
+
+            // Required fields validation
             if (!name) missingFields.push("name");
             if (!email) missingFields.push("email");
             if (!contactNo) missingFields.push("contactNo");
             if (!employeeType) missingFields.push("employeeType");
+            if (!position) missingFields.push("position");
 
             if (missingFields.length > 0) {
                 failedRows.push({
-                    sno: sno || i + 1,
                     rowNumber: i + 2,
-                    reason: `Missing required fields: ${missingFields.join(", ")}`,
+                    reason: `Missing required fields: ${missingFields.join(
+                        ", "
+                    )}`,
                     data: row,
                 });
                 continue;
             }
 
-            // ✅ VALIDATE EMPLOYEE TYPE
+            // Validate employee type
             if (!["Permanent", "Contractual"].includes(employeeType)) {
                 failedRows.push({
-                    sno: sno || i + 1,
                     rowNumber: i + 2,
                     reason: `Invalid employeeType: '${employeeType}'. Must be 'Permanent' or 'Contractual'`,
                     data: row,
@@ -184,11 +184,10 @@ export const bulkAddEmployees = async (req, res) => {
                 continue;
             }
 
-            // ✅ VALIDATE EMAIL FORMAT
+            // Email validation
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(email)) {
                 failedRows.push({
-                    sno: sno || i + 1,
                     rowNumber: i + 2,
                     reason: `Invalid email format: ${email}`,
                     data: row,
@@ -196,11 +195,10 @@ export const bulkAddEmployees = async (req, res) => {
                 continue;
             }
 
-            // ✅ VALIDATE CONTACT NUMBER
+            // Contact number validation
             const contactRegex = /^[6-9]\d{9}$/;
-            if (!contactRegex.test(String(contactNo))) {
+            if (!contactRegex.test(contactNo)) {
                 failedRows.push({
-                    sno: sno || i + 1,
                     rowNumber: i + 2,
                     reason: `Invalid contact number: ${contactNo}. Must be 10 digits starting with 6-9`,
                     data: row,
@@ -208,14 +206,13 @@ export const bulkAddEmployees = async (req, res) => {
                 continue;
             }
 
-            // ✅ CHECK DUPLICATES
+            // Duplicate check
             const exists = await Employee.findOne({
                 $or: [{ email }, { phone: contactNo }],
             });
 
             if (exists) {
                 failedRows.push({
-                    sno: sno || i + 1,
                     rowNumber: i + 2,
                     reason: `Duplicate entry: Email '${email}' or Contact '${contactNo}' already exists`,
                     data: row,
@@ -230,28 +227,23 @@ export const bulkAddEmployees = async (req, res) => {
                 continue;
             }
 
-            // ✅ HASH PASSWORD
+            /* ---------------- BUILD EMPLOYEE OBJECT ---------------- */
             try {
-                const hashedPassword = await bcrypt.hash(
-                    contactNo.toString(),
-                    10
-                );
+                const hashedPassword = await bcrypt.hash(contactNo, 10);
 
-                // ✅ BUILD EMPLOYEE OBJECT
                 employeesToInsert.push({
                     name,
                     email,
                     phone: contactNo,
                     password: hashedPassword,
                     employeeType,
-                    position: position || "",
+                    position,
                     isActive: true,
                     createdByAdmin: req.user.id,
                     isFirstLogin: true,
                 });
             } catch (err) {
                 failedRows.push({
-                    sno: sno || i + 1,
                     rowNumber: i + 2,
                     reason: `Error processing row: ${err.message}`,
                     data: row,
@@ -259,36 +251,117 @@ export const bulkAddEmployees = async (req, res) => {
             }
         }
 
-        // ✅ INSERT SUCCESSFUL ROWS
+        /* ---------------- INSERT INTO DATABASE ---------------- */
+
         let insertedEmployees = [];
         if (employeesToInsert.length > 0) {
             try {
-                insertedEmployees = await Employee.insertMany(
-                    employeesToInsert
+                console.log(
+                    `📝 Attempting to insert ${employeesToInsert.length} employees...`
                 );
-            } catch (err) {
-                return res.status(500).json({
-                    message: "Database insertion failed",
-                    error: err.message,
-                    failedRows: failedRows,
-                });
+
+                insertedEmployees = await Employee.insertMany(
+                    employeesToInsert,
+                    { ordered: false }
+                );
+
+                console.log(
+                    `✅ Successfully inserted ${insertedEmployees.length} employees`
+                );
+            } catch (insertError) {
+                console.error("❌ Insert error:", insertError);
+
+                // Capture successfully inserted documents
+                if (insertError.insertedDocs) {
+                    insertedEmployees = insertError.insertedDocs;
+                    console.log(
+                        `✅ Partially successful: ${insertedEmployees.length} inserted`
+                    );
+                }
+
+                // Capture failed inserts from MongoDB
+                if (insertError.writeErrors) {
+                    console.log(
+                        `❌ Write errors found: ${insertError.writeErrors.length}`
+                    );
+                    insertError.writeErrors.forEach((err) => {
+                        const failedIndex = err.index;
+                        const failedDoc = employeesToInsert[failedIndex];
+
+                        let errorMsg = "Unknown database error";
+                        if (err.errmsg) {
+                            errorMsg = err.errmsg;
+                        } else if (err.err && err.err.errmsg) {
+                            errorMsg = err.err.errmsg;
+                        } else if (err.message) {
+                            errorMsg = err.message;
+                        }
+
+                        failedRows.push({
+                            rowNumber: failedIndex + 2,
+                            reason: `Database error: ${errorMsg}`,
+                            data: {
+                                name: failedDoc.name,
+                                email: failedDoc.email,
+                                phone: failedDoc.phone,
+                            },
+                        });
+                    });
+                } else {
+                    console.error("General MongoDB error:", {
+                        name: insertError.name,
+                        message: insertError.message,
+                        code: insertError.code,
+                    });
+
+                    if (insertError.name === "ValidationError") {
+                        const validationErrors = Object.keys(
+                            insertError.errors || {}
+                        )
+                            .map((key) => {
+                                return `${key}: ${insertError.errors[key].message}`;
+                            })
+                            .join(", ");
+
+                        return res.status(400).json({
+                            success: false,
+                            message: "Validation error during bulk insert",
+                            error: validationErrors || insertError.message,
+                            failedRows: failedRows,
+                        });
+                    }
+
+                    return res.status(500).json({
+                        success: false,
+                        message: "Database insertion failed",
+                        error: insertError.message,
+                        errorDetails: {
+                            name: insertError.name,
+                            code: insertError.code,
+                        },
+                        failedRows: failedRows,
+                    });
+                }
             }
         }
 
-        // ✅ COMPREHENSIVE RESPONSE
+        /* ---------------- PREPARE RESPONSE ---------------- */
+
         const response = {
             success: true,
             summary: {
                 totalRows: rows.length,
                 successful: insertedEmployees.length,
                 failed: failedRows.length,
-                successRate: `${(
-                    (insertedEmployees.length / rows.length) *
-                    100
-                ).toFixed(2)}%`,
+                successRate:
+                    rows.length > 0
+                        ? `${(
+                              (insertedEmployees.length / rows.length) *
+                              100
+                          ).toFixed(2)}%`
+                        : "0%",
             },
-            insertedEmployees: insertedEmployees.map((emp, index) => ({
-                sno: index + 1,
+            insertedEmployees: insertedEmployees.map((emp) => ({
                 id: emp._id,
                 name: emp.name,
                 email: emp.email,
@@ -298,10 +371,11 @@ export const bulkAddEmployees = async (req, res) => {
                 position: emp.position,
                 isActive: emp.isActive,
             })),
-            failedRows: failedRows,
+            failedRows,
         };
 
-        // ✅ DETERMINE STATUS CODE
+        /* ---------------- RETURN APPROPRIATE STATUS ---------------- */
+
         if (insertedEmployees.length === 0) {
             return res.status(400).json({
                 success: false,
@@ -324,11 +398,15 @@ export const bulkAddEmployees = async (req, res) => {
             ...response,
         });
     } catch (error) {
-        console.error("Bulk add employees error:", error);
+        console.error("❌ Bulk add employees error:", error);
         res.status(500).json({
             success: false,
             message: "Server error",
             error: error.message,
+            stack:
+                process.env.NODE_ENV === "development"
+                    ? error.stack
+                    : undefined,
         });
     }
 };
