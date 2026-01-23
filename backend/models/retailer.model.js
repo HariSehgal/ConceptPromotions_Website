@@ -73,7 +73,7 @@ const retailerSchema = new Schema(
             ref: "Employee",
         },
     },
-    { timestamps: true }
+    { timestamps: true },
 );
 
 retailerSchema.index({ email: 1 }, { sparse: true });
